@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BundleGH — Buy & Track Data Bundles in Ghana</title>
+  <meta name="description" content="Buy data bundles from MTN, AirtelTigo, and Telecel Ghana instantly. Track your usage, manage purchases, and stay connected. Fast, secure & powered by Paystack." />
+  <meta name="keywords" content="Ghana data bundles, MTN data, AirtelTigo data, Telecel data, buy data Ghana, mobile data Ghana" />
+  <meta property="og:title" content="BundleGH — Ghana's #1 Data Bundle Platform" />
+  <meta property="og:description" content="Buy & track data bundles from MTN, AirtelTigo, and Telecel Ghana. Secure checkout via Paystack." />
+  <link rel="stylesheet" href="style.css" />
+  <!-- Paystack Inline JS -->
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+</head>
+<body>
+
+  <!-- ═══════════════ NAVBAR ═══════════════ -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-logo" id="nav-logo" onclick="navigate('home')">
+      <div class="nav-logo-icon">📡</div>
+      <span class="nav-logo-text">BundleGH</span>
+    </div>
+    <div class="nav-links" id="nav-links">
+      <button class="nav-link active" id="nav-home" onclick="navigate('home')">Home</button>
+      <button class="nav-link" id="nav-bundles" onclick="navigate('bundles')">Buy Bundles</button>
+      <button class="nav-link" id="nav-dashboard" onclick="navigate('dashboard')">My Bundles</button>
+      <button class="nav-cta" onclick="navigate('bundles')">Get Data Now</button>
+    </div>
+    <div class="nav-hamburger" id="hamburger" onclick="toggleMobileMenu()">
+      <span></span><span></span><span></span>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div id="mobile-menu" style="display:none; position:fixed; top:68px; left:0; right:0; background:rgba(8,12,24,0.97); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); padding:16px 24px; z-index:999; flex-direction:column; gap:8px;">
+    <button class="nav-link" style="width:100%;text-align:left;" onclick="navigate('home');closeMobileMenu()">Home</button>
+    <button class="nav-link" style="width:100%;text-align:left;" onclick="navigate('bundles');closeMobileMenu()">Buy Bundles</button>
+    <button class="nav-link" style="width:100%;text-align:left;" onclick="navigate('dashboard');closeMobileMenu()">My Bundles</button>
+    <button class="nav-cta" style="width:100%;margin-top:8px;" onclick="navigate('bundles');closeMobileMenu()">Get Data Now</button>
+  </div>
+
+  <!-- ═══════════════ HOME PAGE ═══════════════ -->
+  <section id="page-home" class="page active">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-bg">
+        <div class="hero-orb hero-orb-1"></div>
+        <div class="hero-orb hero-orb-2"></div>
+        <div class="hero-orb hero-orb-3"></div>
+      </div>
+      <div class="hero-content">
+        <div class="hero-badge">
+          <div class="hero-badge-dot"></div>
+          Ghana's #1 Data Bundle Platform
+        </div>
+        <h1>Buy Data Bundles<br><span class="highlight">Instantly in Ghana</span></h1>
+        <p>Get connected in seconds. Purchase data bundles from MTN, AirtelTigo, and Telecel — fast, secure, and powered by Paystack.</p>
+        <div class="hero-actions">
+          <button class="btn-primary" id="hero-cta-btn" onclick="navigate('bundles')">
+            <span>Browse Bundles</span>
+            <span>→</span>
+          </button>
+          <button class="btn-secondary" onclick="navigate('dashboard')">
+            <span>📊</span>
+            <span>Track My Data</span>
+          </button>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="hero-stat-value" id="stat-bundles">35+</span>
+          <div class="hero-stat-label">Bundle Options</div>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value">3</span>
+          <div class="hero-stat-label">Networks Covered</div>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value">GHS 0.50</span>
+          <div class="hero-stat-label">Starting From</div>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value">24/7</span>
+          <div class="hero-stat-label">Always Available</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Networks Section -->
+    <section class="networks-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Networks</span>
+          <h2 class="section-title">Pick Your Network</h2>
+          <p class="section-sub">We support all major telecom providers in Ghana</p>
+        </div>
+        <div class="networks-grid">
+          <!-- MTN -->
+          <div class="network-card mtn" onclick="filterNetwork('mtn')" id="home-card-mtn">
+            <div class="network-badge mtn">MTN</div>
+            <div class="network-name">MTN Ghana</div>
+            <div class="network-tagline">Everywhere You Go</div>
+            <div class="network-bundle-count mtn">
+              <span>📦</span>
+              <span id="mtn-count">11 bundles available</span>
+            </div>
+            <div class="network-arrow">→</div>
+          </div>
+          <!-- AirtelTigo -->
+          <div class="network-card airteltigo" onclick="filterNetwork('airteltigo')" id="home-card-at">
+            <div class="network-badge airteltigo">AT</div>
+            <div class="network-name">AirtelTigo</div>
+            <div class="network-tagline">Making Sense</div>
+            <div class="network-bundle-count airteltigo">
+              <span>📦</span>
+              <span id="at-count">9 bundles available</span>
+            </div>
+            <div class="network-arrow">→</div>
+          </div>
+          <!-- Telecel -->
+          <div class="network-card telecel" onclick="filterNetwork('telecel')" id="home-card-tc">
+            <div class="network-badge telecel">TC</div>
+            <div class="network-name">Telecel Ghana</div>
+            <div class="network-tagline">Together We Can</div>
+            <div class="network-bundle-count telecel">
+              <span>📦</span>
+              <span id="tc-count">9 bundles available</span>
+            </div>
+            <div class="network-arrow">→</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="how-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">How It Works</span>
+          <h2 class="section-title">Get Data in 3 Simple Steps</h2>
+          <p class="section-sub">From browsing to connected — it takes less than a minute</p>
+        </div>
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <div class="step-icon">🔍</div>
+            <div class="step-title">Choose a Bundle</div>
+            <div class="step-desc">Browse our full catalog of data bundles across MTN, AirtelTigo, and Telecel. Filter by network, size, and duration to find the perfect fit.</div>
+          </div>
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <div class="step-icon">💳</div>
+            <div class="step-title">Pay Securely</div>
+            <div class="step-desc">Enter your phone number and pay securely via Paystack — supporting Mobile Money, Visa, Mastercard, and more.</div>
+          </div>
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <div class="step-icon">📊</div>
+            <div class="step-title">Track Your Data</div>
+            <div class="step-desc">Monitor your active bundles, track usage, view purchase history, and get renewal reminders — all in your personal dashboard.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Featured Bundles -->
+    <section class="featured-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Featured</span>
+          <h2 class="section-title">Most Popular Bundles</h2>
+          <p class="section-sub">Ghana's favourite data deals, hand-picked for you</p>
+        </div>
+        <div class="bundles-grid" id="featured-bundles-grid">
+          <!-- Populated by JS -->
+        </div>
+        <div style="text-align:center; margin-top:40px;">
+          <button class="btn-primary" onclick="navigate('bundles')" style="margin:0 auto;">
+            View All Bundles →
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="nav-logo" style="margin-bottom:0;">
+            <div class="nav-logo-icon">📡</div>
+            <span class="nav-logo-text">BundleGH</span>
+          </div>
+          <p>Ghana's fastest and most reliable data bundle platform. Buy, track, and manage data bundles from all major networks.</p>
+        </div>
+        <div>
+          <div class="footer-col-title">Networks</div>
+          <div class="footer-links">
+            <span class="footer-link" onclick="filterNetwork('mtn')">MTN Ghana</span>
+            <span class="footer-link" onclick="filterNetwork('airteltigo')">AirtelTigo</span>
+            <span class="footer-link" onclick="filterNetwork('telecel')">Telecel Ghana</span>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-title">Quick Links</div>
+          <div class="footer-links">
+            <span class="footer-link" onclick="navigate('home')">Home</span>
+            <span class="footer-link" onclick="navigate('bundles')">Buy Bundles</span>
+            <span class="footer-link" onclick="navigate('dashboard')">My Dashboard</span>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-title">Support</div>
+          <div class="footer-links">
+            <span class="footer-link">FAQs</span>
+            <span class="footer-link">Contact Us</span>
+            <span class="footer-link">MTN: *138#</span>
+            <span class="footer-link">AT: *100#</span>
+            <span class="footer-link">Telecel: *700#</span>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2025 BundleGH. All rights reserved. Powered by Paystack.</p>
+        <div class="footer-bottom-links">
+          <span class="footer-bottom-link">Privacy Policy</span>
+          <span class="footer-bottom-link">Terms of Service</span>
+        </div>
+      </div>
+    </footer>
+
+  </section>
+
+  <!-- ═══════════════ BUNDLES PAGE ═══════════════ -->
+  <section id="page-bundles" class="page">
+    <div class="bundles-page-header">
+      <div class="container">
+        <div class="bundles-page-title">Buy Data Bundles</div>
+        <div class="bundles-page-sub">Choose from <strong id="total-count">29</strong> bundles across MTN, AirtelTigo & Telecel</div>
+      </div>
+    </div>
+    <div class="bundles-page-body container">
+      <!-- Filters -->
+      <div class="filters-bar" id="filters-bar">
+        <div class="filter-group" style="flex:1; min-width:200px;">
+          <div class="filter-label">🔍 Search</div>
+          <div class="search-input-wrap" style="flex:none;">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" id="search-input" placeholder="e.g. 5GB, monthly…" oninput="applyFilters()" />
+          </div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-label">Network</div>
+          <select class="filter-select" id="filter-network" onchange="applyFilters()">
+            <option value="all">All Networks</option>
+            <option value="mtn">MTN Ghana</option>
+            <option value="airteltigo">AirtelTigo</option>
+            <option value="telecel">Telecel Ghana</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <div class="filter-label">Duration</div>
+          <select class="filter-select" id="filter-category" onchange="applyFilters()">
+            <option value="all">All Durations</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <div class="filter-label">Sort By</div>
+          <select class="filter-select" id="filter-sort" onchange="applyFilters()">
+            <option value="default">Default</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
+            <option value="data-asc">Data: Small to Large</option>
+            <option value="data-desc">Data: Large to Small</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Results info -->
+      <div class="bundles-results-count" id="results-count">
+        Showing <span id="results-num">29</span> bundles
+      </div>
+
+      <!-- Grid -->
+      <div class="bundles-grid" id="bundles-grid">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- No results -->
+      <div class="no-bundles" id="no-bundles" style="display:none;">
+        <div class="no-bundles-icon">📭</div>
+        <h3>No bundles found</h3>
+        <p>Try adjusting your filters or search term.</p>
+        <button class="btn-secondary" onclick="resetFilters()" style="margin:0 auto;">Clear Filters</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ CHECKOUT PAGE ═══════════════ -->
+  <section id="page-checkout" class="page">
+    <div class="checkout-page">
+      <div class="checkout-wrap">
+        <div class="checkout-back" onclick="history.back(); navigate(checkoutState.fromPage || 'bundles')">
+          ← Back
+        </div>
+        <div class="checkout-title">Complete Your Purchase</div>
+        <div class="checkout-sub">Enter your details to buy this data bundle securely.</div>
+
+        <!-- Order Summary -->
+        <div class="order-summary-card" id="checkout-summary-card">
+          <div class="order-summary-label">Your Selected Bundle</div>
+          <div class="order-bundle-info">
+            <div class="order-bundle-left">
+              <div class="data-amount" id="co-data">5GB</div>
+              <div class="bundle-name-full" id="co-name">MTN Monthly</div>
+            </div>
+            <div class="order-bundle-right">
+              <div class="price-currency">Price (GHS)</div>
+              <div class="price-display" id="co-price">50.00</div>
+            </div>
+          </div>
+          <div class="order-bundle-meta">
+            <div class="order-meta-item">
+              <div class="order-meta-item-label">Network</div>
+              <div class="order-meta-item-val" id="co-network">MTN Ghana</div>
+            </div>
+            <div class="order-meta-item">
+              <div class="order-meta-item-label">Validity</div>
+              <div class="order-meta-item-val" id="co-validity">30 days</div>
+            </div>
+            <div class="order-meta-item">
+              <div class="order-meta-item-label">Category</div>
+              <div class="order-meta-item-val" id="co-category">Monthly</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form -->
+        <div class="checkout-form">
+          <div class="form-group">
+            <label class="form-label" for="phone-input">Phone Number <span>*</span></label>
+            <input
+              type="tel"
+              class="form-input"
+              id="phone-input"
+              placeholder="e.g. 0244123456"
+              maxlength="10"
+              oninput="validatePhone()"
+            />
+            <div class="form-hint">📱 The bundle will be sent to this number</div>
+            <div class="form-error" id="phone-error">Please enter a valid 10-digit Ghana phone number</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="email-input">Email Address <span>*</span></label>
+            <input
+              type="email"
+              class="form-input"
+              id="email-input"
+              placeholder="e.g. you@gmail.com"
+              oninput="validateEmail()"
+            />
+            <div class="form-hint">📧 Your receipt will be sent here</div>
+            <div class="form-error" id="email-error">Please enter a valid email address</div>
+          </div>
+        </div>
+
+        <!-- Paystack info -->
+        <div class="paystack-info">
+          <span style="font-size:20px;">🔒</span>
+          <span>Your payment is secured by <strong>Paystack</strong>. We accept Mobile Money, Visa, Mastercard, and Bank Transfer.</span>
+        </div>
+
+        <button class="btn-pay" id="pay-btn" onclick="initiatePayment()">
+          <span>🔐</span>
+          <span>Pay GHS <span id="pay-amount">50.00</span> with Paystack</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ SUCCESS PAGE ═══════════════ -->
+  <section id="page-success" class="page">
+    <div class="success-page">
+      <div class="success-wrap">
+        <div class="success-animation">✅</div>
+        <h1 class="success-title">Bundle Purchased! 🎉</h1>
+        <p class="success-sub">Your data bundle has been activated successfully. Check your phone for a confirmation SMS from your network provider.</p>
+
+        <div class="success-ref">
+          <div class="success-ref-label">Transaction Reference</div>
+          <div class="success-ref-value" id="success-ref">—</div>
+        </div>
+
+        <div class="success-detail-grid">
+          <div class="success-detail-item">
+            <div class="success-detail-label">Bundle</div>
+            <div class="success-detail-value" id="success-data">—</div>
+          </div>
+          <div class="success-detail-item">
+            <div class="success-detail-label">Network</div>
+            <div class="success-detail-value" id="success-network">—</div>
+          </div>
+          <div class="success-detail-item">
+            <div class="success-detail-label">Phone</div>
+            <div class="success-detail-value" id="success-phone">—</div>
+          </div>
+          <div class="success-detail-item">
+            <div class="success-detail-label">Amount Paid</div>
+            <div class="success-detail-value" id="success-amount">—</div>
+          </div>
+        </div>
+
+        <div class="success-actions">
+          <button class="btn-primary" style="width:100%;justify-content:center;" onclick="navigate('dashboard')">
+            📊 View My Dashboard
+          </button>
+          <button class="btn-secondary" style="width:100%;justify-content:center;" onclick="navigate('bundles')">
+            🛍️ Buy Another Bundle
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ DASHBOARD PAGE ═══════════════ -->
+  <section id="page-dashboard" class="page">
+    <div class="dashboard-header">
+      <div class="container">
+        <div class="dashboard-greeting">Welcome back 👋</div>
+        <div class="dashboard-title">My Data Dashboard</div>
+        <div class="dashboard-stats" id="dashboard-stats">
+          <div class="dash-stat">
+            <div class="dash-stat-value" id="stat-active">0</div>
+            <div class="dash-stat-label">Active Bundles</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-value" id="stat-total-spent">GHS 0</div>
+            <div class="dash-stat-label">Total Spent</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-value" id="stat-total-purchases">0</div>
+            <div class="dash-stat-label">Total Purchases</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-body container" id="dashboard-body">
+      <!-- Populated by JS -->
+    </div>
+  </section>
+
+  <!-- ═══════════════ TOAST CONTAINER ═══════════════ -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
