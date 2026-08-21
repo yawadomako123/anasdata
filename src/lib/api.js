@@ -1,7 +1,6 @@
 import { supabase, isSupabaseReady } from './supabase';
 
-const NOT_READY =
-  'Backend not configured. Add VITE_PUBLIC_SUPABASE_URL and VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY to .env (see README).';
+const NOT_READY = 'Service is temporarily unavailable. Please try again later.';
 
 /**
  * Step 1 of PaySwitch checkout: record a PENDING order and get a transaction

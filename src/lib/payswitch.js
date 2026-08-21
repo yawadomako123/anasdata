@@ -14,12 +14,20 @@
    production inline script and set live credentials (see README).
 ═══════════════════════════════════════════ */
 
-const API_KEY = import.meta.env.VITE_PAYSWITCH_API_KEY;
+const API_KEY = 
+  import.meta.env.VITE_PAYSWITCH_API_KEY || 
+  import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 
+  import.meta.env.VITE_PAYSTACK_API_KEY ||
+  import.meta.env.PAYSTACK_API_KEY;
 
 // TEST inline script. Production: https://checkout.theteller.net/resource/api/inline/theteller_inline.js
 const SCRIPT_SRC = 'https://checkout-test.theteller.net/resource/api/inline/theteller_inline.js';
 
 export const isPaySwitchConfigured = Boolean(API_KEY && !/x{4,}/i.test(API_KEY));
+
+// Customer-facing message when something is misconfigured. Technical detail
+// goes to the console for the developer, never to the customer's screen.
+const UNAVAILABLE = 'Online payment is temporarily unavailable. Please try again later.';
 
 let scriptPromise = null;
 function loadInlineScript() {
@@ -65,12 +73,14 @@ export async function openPaySwitchInline({
   onClose,
 }) {
   if (!isPaySwitchConfigured) {
-    throw new Error('PaySwitch API key is not set. Add VITE_PAYSWITCH_API_KEY to .env.');
+    console.error('PaySwitch not configured: VITE_PAYSWITCH_API_KEY is missing at build time.');
+    throw new Error(UNAVAILABLE);
   }
   await loadInlineScript();
 
   if (typeof window.getpaidSetup !== 'function') {
-    throw new Error('PaySwitch checkout failed to initialise. Please refresh and try again.');
+    console.error('PaySwitch inline script loaded but window.getpaidSetup is undefined.');
+    throw new Error(UNAVAILABLE);
   }
 
   window.getpaidSetup({

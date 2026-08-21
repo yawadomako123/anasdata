@@ -13,6 +13,13 @@ const anonKey =
 // needs the backend checks `isSupabaseReady` first.
 export const isSupabaseReady = Boolean(url && anonKey);
 
+if (!isSupabaseReady) {
+  // Developer-only hint; customers never see this.
+  console.error(
+    'Supabase not configured: set VITE_PUBLIC_SUPABASE_URL and VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY.'
+  );
+}
+
 export const supabase = isSupabaseReady ? createClient(url, anonKey) : null;
 
 export const SUPABASE_URL = url || '';

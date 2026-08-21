@@ -106,8 +106,7 @@ export default function Checkout() {
 
         {!isPaySwitchConfigured && (
           <div className="banner-warn">
-            ⚠️ PaySwitch isn't configured yet. Add your <code>VITE_PAYSWITCH_API_KEY</code> in{' '}
-            <code>.env</code> to accept real payments.
+            Online payment is temporarily unavailable. Please try again shortly.
           </div>
         )}
 
