@@ -27,7 +27,19 @@ const json = (body: unknown, status = 200) =>
     headers: { ...CORS, 'Content-Type': 'application/json' },
   });
 
-const toPesewas12 = (ghs: number) => String(Math.round(ghs * 100)).padStart(12, '0');
+// theTeller's status endpoint may report the amount either as plain cedis
+// ("4.70") or as a zero-padded pesewas integer ("000000000470"). Accept a
+// match on either interpretation so a correct payment is never falsely
+// rejected, while a tampered (lower) amount still fails both.
+function amountMatches(raw: unknown, priceGhs: number): boolean {
+  const s = String(raw ?? '').trim();
+  if (!s) return true; // nothing to compare against
+  const asCedis = parseFloat(s); // "4.70" -> 4.70 ; "000000000470" -> 470
+  const asPesewas = /^\d+$/.test(s) ? parseInt(s, 10) / 100 : NaN; // -> 4.70
+  return [asCedis, asPesewas].some(
+    (v) => Number.isFinite(v) && Math.abs(v - priceGhs) < 0.01
+  );
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -87,8 +99,7 @@ Deno.serve(async (req) => {
     }
 
     // Confirm the amount charged matches the real bundle price.
-    const expected = toPesewas12(Number(order.price));
-    if (result.amount && String(result.amount) !== expected) {
+    if (!amountMatches(result.amount, Number(order.price))) {
       return json({ error: 'Amount mismatch — payment rejected.' }, 402);
     }
 

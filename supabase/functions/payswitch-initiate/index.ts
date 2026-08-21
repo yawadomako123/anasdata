@@ -25,8 +25,9 @@ const json = (body: unknown, status = 200) =>
     headers: { ...CORS, 'Content-Type': 'application/json' },
   });
 
-// theTeller wants a 12-digit zero-padded pesewas string.
-const toPesewas12 = (ghs: number) => String(Math.round(ghs * 100)).padStart(12, '0');
+// theTeller's INLINE popup expects the amount in plain cedis (major units),
+// e.g. "4.70" — NOT the 12-digit pesewas string used by their raw API.
+const toCedis = (ghs: number) => Number(ghs).toFixed(2);
 
 // 12-digit numeric transaction id.
 const makeTransactionId = () => {
@@ -74,7 +75,7 @@ Deno.serve(async (req) => {
     const { error: insertErr } = await supabase.from('orders').insert(order);
     if (insertErr) return json({ error: `Could not start order: ${insertErr.message}` }, 500);
 
-    return json({ transaction_id: transactionId, amount: toPesewas12(bundle.price) });
+    return json({ transaction_id: transactionId, amount: toCedis(bundle.price) });
   } catch (err) {
     return json({ error: (err as Error).message ?? 'Unexpected error.' }, 500);
   }
