@@ -39,9 +39,14 @@ function loadInlineScript() {
 }
 
 /**
- * Open the theTeller inline popup. theTeller binds a click handler to an
- * anchor carrying data-* attributes, so we create that anchor, load the
- * script, then click it programmatically.
+ * Open the theTeller inline popup.
+ *
+ * theTeller's inline script exposes a global `window.getpaidSetup(config)`
+ * that opens the payment overlay. (Its documented anchor-with-data-attributes
+ * approach only binds to `.ttlr_inline` anchors present when the script first
+ * loads, which doesn't fit a single-page app — calling getpaidSetup directly
+ * is the reliable equivalent, and is exactly what the anchor's click handler
+ * calls internally.)
  *
  * @param {object} p
  * @param {string} p.transactionId  12-digit id from the initiate Edge Function
@@ -49,31 +54,35 @@ function loadInlineScript() {
  * @param {string} p.email          customer email
  * @param {string} p.description    narration shown on the popup
  * @param {string} p.redirectUrl    where theTeller returns after payment
+ * @param {() => void} [p.onClose]  called if the customer closes the popup
  */
-export async function openPaySwitchInline({ transactionId, amount, email, description, redirectUrl }) {
+export async function openPaySwitchInline({
+  transactionId,
+  amount,
+  email,
+  description,
+  redirectUrl,
+  onClose,
+}) {
   if (!isPaySwitchConfigured) {
     throw new Error('PaySwitch API key is not set. Add VITE_PAYSWITCH_API_KEY to .env.');
   }
   await loadInlineScript();
 
-  document.getElementById('theteller-pay-anchor')?.remove();
+  if (typeof window.getpaidSetup !== 'function') {
+    throw new Error('PaySwitch checkout failed to initialise. Please refresh and try again.');
+  }
 
-  const a = document.createElement('a');
-  a.id = 'theteller-pay-anchor';
-  a.href = '#';
-  a.style.display = 'none';
-  a.setAttribute('data-APIKey', API_KEY);
-  a.setAttribute('data-transid', transactionId);
-  a.setAttribute('data-amount', amount);
-  a.setAttribute('data-currency', 'GHS');
-  a.setAttribute('data-customer_email', email);
-  a.setAttribute('data-redirect_url', redirectUrl);
-  a.setAttribute('data-pay_button_text', 'Pay Now');
-  a.setAttribute('data-custom_description', description);
-  a.setAttribute('data-payment_method', 'both'); // card + mobile money
-  document.body.appendChild(a);
-
-  // Let the inline script bind to the anchor before we trigger it.
-  await new Promise((r) => setTimeout(r, 200));
-  a.click();
+  window.getpaidSetup({
+    APIKey: API_KEY,
+    transid: transactionId,
+    amount, // 12-digit pesewas
+    customer_email: email,
+    currency: 'GHS',
+    redirect_url: redirectUrl,
+    pay_button_text: 'Pay Now',
+    custom_description: description,
+    payment_method: 'both', // card + mobile money
+    onclose: () => onClose && onClose(),
+  });
 }

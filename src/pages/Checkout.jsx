@@ -88,6 +88,7 @@ export default function Checkout() {
         email,
         description: `${bundle.name} to ${phone}`,
         redirectUrl: `${window.location.origin}/payment/return`,
+        onClose: () => setBusy(''), // customer dismissed the popup
       });
       // theTeller now shows its popup and redirects the browser on completion.
     } catch (err) {
