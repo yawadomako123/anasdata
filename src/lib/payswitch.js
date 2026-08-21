@@ -20,8 +20,12 @@ const API_KEY =
   import.meta.env.VITE_PAYSTACK_API_KEY ||
   import.meta.env.PAYSTACK_API_KEY;
 
-// TEST inline script. Production: https://checkout.theteller.net/resource/api/inline/theteller_inline.js
-const SCRIPT_SRC = 'https://checkout-test.theteller.net/resource/api/inline/theteller_inline.js';
+// Which theTeller environment to use. Set VITE_PAYSWITCH_ENV=live in Vercel
+// once your account/credentials are LIVE; defaults to test otherwise.
+const IS_LIVE = String(import.meta.env.VITE_PAYSWITCH_ENV).toLowerCase() === 'live';
+const SCRIPT_SRC = IS_LIVE
+  ? 'https://checkout-old.theteller.net/resource/api/inline/theteller_inline.js'
+  : 'https://checkout-test.theteller.net/resource/api/inline/theteller_inline.js';
 
 export const isPaySwitchConfigured = Boolean(API_KEY && !/x{4,}/i.test(API_KEY));
 
