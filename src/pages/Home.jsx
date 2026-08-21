@@ -1,10 +1,40 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { NETWORKS, BUNDLES, getPopularBundles, getBundlesByNetwork } from '../lib/data';
+import { NETWORKS } from '../lib/data';
+import { fetchBundles } from '../lib/bundles';
 import BundleCard from '../components/BundleCard.jsx';
 
 export default function Home() {
   const navigate = useNavigate();
-  const featured = getPopularBundles(6);
+  const [bundles, setBundles] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    fetchBundles().then((res) => {
+      if (alive && res.ok) setBundles(res.bundles);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Featured = badged bundles first, then fill up to 6.
+  const featured = useMemo(() => {
+    const badged = bundles.filter((b) => b.badge);
+    const rest = bundles.filter((b) => !b.badge);
+    return [...badged, ...rest].slice(0, 6);
+  }, [bundles]);
+
+  const countByNetwork = useMemo(() => {
+    const m = { mtn: 0, telecel: 0 };
+    bundles.forEach((b) => { if (m[b.network] != null) m[b.network] += 1; });
+    return m;
+  }, [bundles]);
+
+  const cheapest = useMemo(
+    () => (bundles.length ? Math.min(...bundles.map((b) => b.price)) : null),
+    [bundles]
+  );
 
   return (
     <>
@@ -17,7 +47,7 @@ export default function Home() {
             <span className="highlight">Instantly in Ghana</span>
           </h1>
           <p>
-            Pick a bundle for MTN, AirtelTigo, or Telecel, pay securely with Paystack, and we
+            Pick a bundle for MTN or Telecel, pay securely with PaySwitch, and we
             load it to your number. Simple.
           </p>
           <div className="hero-actions">
@@ -36,10 +66,10 @@ export default function Home() {
           )}
         </div>
         <div className="hero-stats">
-          <Stat value={`${BUNDLES.length}+`} label="Bundle Options" />
-          <Stat value="3" label="Networks Covered" />
-          <Stat value="GHS 0.50" label="Starting From" />
-          <Stat value="24/7" label="Always Open" />
+          <Stat value={bundles.length ? `${bundles.length}` : '—'} label="Bundle Options" />
+          <Stat value="2" label="Networks Covered" />
+          <Stat value={cheapest != null ? `GHS ${cheapest.toFixed(2)}` : '—'} label="Starting From" />
+          <Stat value="Non-expiry" label="Data Bundles" />
         </div>
       </section>
 
@@ -62,7 +92,7 @@ export default function Home() {
                 <div className="network-name">{net.fullName}</div>
                 <div className="network-tagline">{net.tagline}</div>
                 <div className={`network-bundle-count ${net.id}`}>
-                  <span>{getBundlesByNetwork(net.id).length} bundles available</span>
+                  <span>{countByNetwork[net.id]} bundles available</span>
                 </div>
                 <div className="network-arrow">→</div>
               </Link>
@@ -81,9 +111,9 @@ export default function Home() {
           </div>
           <div className="steps-grid">
             <Step n="1" title="Choose a Bundle"
-              desc="Browse bundles across MTN, AirtelTigo, and Telecel. Filter by network, size, and duration." />
+              desc="Browse non-expiry bundles for MTN and Telecel. Filter by network and size." />
             <Step n="2" title="Pay Securely"
-              desc="Enter the number to top up and pay with Paystack — Mobile Money, Visa, or Mastercard." />
+              desc="Enter the number to top up and pay with PaySwitch — Mobile Money, Visa, or Mastercard." />
             <Step n="3" title="We Load It"
               desc="Your order reaches us and we load the bundle to your number, then you get a confirmation." />
           </div>
@@ -91,25 +121,27 @@ export default function Home() {
       </section>
 
       {/* Featured */}
-      <section className="featured-section">
-        <div className="container">
-          <div className="section-header">
-            <span className="section-tag">Featured</span>
-            <h2 className="section-title">Most Popular Bundles</h2>
-            <p className="section-sub">Ghana's favourite data deals, hand-picked for you</p>
+      {featured.length > 0 && (
+        <section className="featured-section">
+          <div className="container">
+            <div className="section-header">
+              <span className="section-tag">Featured</span>
+              <h2 className="section-title">Most Popular Bundles</h2>
+              <p className="section-sub">Ghana's favourite data deals, hand-picked for you</p>
+            </div>
+            <div className="bundles-grid">
+              {featured.map((b) => (
+                <BundleCard key={b.id} bundle={b} />
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 40 }}>
+              <button className="btn-primary" style={{ margin: '0 auto' }} onClick={() => navigate('/bundles')}>
+                View All Bundles →
+              </button>
+            </div>
           </div>
-          <div className="bundles-grid">
-            {featured.map((b) => (
-              <BundleCard key={b.id} bundle={b} />
-            ))}
-          </div>
-          <div style={{ textAlign: 'center', marginTop: 40 }}>
-            <button className="btn-primary" style={{ margin: '0 auto' }} onClick={() => navigate('/bundles')}>
-              View All Bundles →
-            </button>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
     </>
   );
 }

@@ -15,8 +15,3 @@ export const prettyDate = (iso) =>
 export const isValidGhPhone = (phone) => /^0[235][0-9]{8}$/.test((phone || '').trim());
 
 export const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || '').trim());
-
-// Build a client-side reference. The server re-verifies with Paystack,
-// so this is only used to correlate the transaction.
-export const makeRef = () =>
-  `BDL_${Date.now()}_${Math.random().toString(36).slice(2, 8).toUpperCase()}`;

@@ -6,9 +6,11 @@ import Home from './pages/Home.jsx';
 import Bundles from './pages/Bundles.jsx';
 import Checkout from './pages/Checkout.jsx';
 import Success from './pages/Success.jsx';
+import PaymentReturn from './pages/PaymentReturn.jsx';
 import TrackOrder from './pages/TrackOrder.jsx';
 import AdminLogin from './pages/admin/AdminLogin.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
+import AdminBundles from './pages/admin/AdminBundles.jsx';
 import RequireAuth from './pages/admin/RequireAuth.jsx';
 
 export default function App() {
@@ -30,6 +32,7 @@ export default function App() {
           <Route path="/bundles" element={<Bundles />} />
           <Route path="/checkout/:bundleId" element={<Checkout />} />
           <Route path="/success" element={<Success />} />
+          <Route path="/payment/return" element={<PaymentReturn />} />
           <Route path="/track" element={<TrackOrder />} />
 
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -38,6 +41,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <AdminDashboard />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/bundles"
+            element={
+              <RequireAuth>
+                <AdminBundles />
               </RequireAuth>
             }
           />

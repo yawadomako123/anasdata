@@ -1,21 +1,47 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getBundleById, NETWORKS } from '../lib/data';
-import { isValidGhPhone, isValidEmail, capitalize, cedis } from '../lib/format';
-import { payWithPaystack, isPaystackConfigured } from '../lib/paystack';
-import { verifyAndRecordOrder } from '../lib/api';
+import { NETWORKS } from '../lib/data';
+import { fetchBundleById } from '../lib/bundles';
+import { isValidGhPhone, isValidEmail, cedis } from '../lib/format';
+import { openPaySwitchInline, isPaySwitchConfigured } from '../lib/payswitch';
+import { initiatePaySwitchOrder } from '../lib/api';
 import { useToast } from '../components/Toast.jsx';
 
 export default function Checkout() {
   const { bundleId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const bundle = getBundleById(bundleId);
+
+  const [bundle, setBundle] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [touched, setTouched] = useState({});
   const [busy, setBusy] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetchBundleById(bundleId).then((res) => {
+      if (!alive) return;
+      setLoading(false);
+      if (res.ok) setBundle(res.bundle);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [bundleId]);
+
+  if (loading) {
+    return (
+      <div className="checkout-page">
+        <div className="checkout-wrap" style={{ display: 'grid', placeItems: 'center', padding: 60 }}>
+          <span className="spinner" />
+        </div>
+      </div>
+    );
+  }
 
   if (!bundle) {
     return (
@@ -43,37 +69,27 @@ export default function Checkout() {
     if (!emailOk) return toast('⚠️ Enter a valid email address', 'error');
 
     try {
-      setBusy('Opening Paystack…');
-      const reference = await payWithPaystack({
-        email,
-        phone,
-        amountGhs: bundle.price,
-        bundle,
-      });
-
-      setBusy('Confirming payment…');
-      const res = await verifyAndRecordOrder({
-        reference,
-        bundleId: bundle.id,
-        phone,
-        email,
-      });
-
-      if (!res.ok) {
-        toast(`⚠️ ${res.error}`, 'error', 6000);
+      setBusy('Starting secure payment…');
+      const init = await initiatePaySwitchOrder({ bundleId: bundle.id, phone, email });
+      if (!init.ok) {
+        toast(`⚠️ ${init.error}`, 'error', 6000);
         setBusy('');
         return;
       }
 
-      navigate('/success', {
-        state: {
-          reference,
-          bundle,
-          phone,
-          amount: bundle.price,
-          network: net.fullName,
-        },
+      // Remember the transaction so /payment/return can recover it after the
+      // theTeller redirect.
+      sessionStorage.setItem('anasdata_txn', init.transactionId);
+
+      setBusy('Opening PaySwitch…');
+      await openPaySwitchInline({
+        transactionId: init.transactionId,
+        amount: init.amount,
+        email,
+        description: `${bundle.name} to ${phone}`,
+        redirectUrl: `${window.location.origin}/payment/return`,
       });
+      // theTeller now shows its popup and redirects the browser on completion.
     } catch (err) {
       setBusy('');
       toast(`ℹ️ ${err.message}`, 'info');
@@ -87,9 +103,9 @@ export default function Checkout() {
         <div className="checkout-title">Complete Your Purchase</div>
         <div className="checkout-sub">Enter the number to top up, then pay securely.</div>
 
-        {!isPaystackConfigured && (
+        {!isPaySwitchConfigured && (
           <div className="banner-warn">
-            ⚠️ Paystack isn't configured yet. Add your <code>VITE_PAYSTACK_PUBLIC_KEY</code> in{' '}
+            ⚠️ PaySwitch isn't configured yet. Add your <code>VITE_PAYSWITCH_API_KEY</code> in{' '}
             <code>.env</code> to accept real payments.
           </div>
         )}
@@ -108,8 +124,8 @@ export default function Checkout() {
           </div>
           <div className="order-bundle-meta">
             <Meta label="Network" value={net.fullName} />
-            <Meta label="Validity" value={`${bundle.duration} ${bundle.durationUnit}`} />
-            <Meta label="Category" value={capitalize(bundle.category)} />
+            <Meta label="Validity" value="Non-expiry" />
+            <Meta label="Delivery" value="To your number" />
           </div>
         </div>
 
@@ -153,8 +169,8 @@ export default function Checkout() {
         <div className="paystack-info">
           <span style={{ fontSize: 20 }}>🔒</span>
           <span>
-            Payment secured by <strong>Paystack</strong>. Mobile Money, Visa, Mastercard &amp; Bank
-            Transfer accepted.
+            Payment secured by <strong>PaySwitch</strong>. Mobile Money, Visa &amp; Mastercard
+            accepted.
           </span>
         </div>
 
@@ -166,7 +182,7 @@ export default function Checkout() {
           ) : (
             <>
               <span>🔐</span>
-              <span>Pay {cedis(bundle.price)} with Paystack</span>
+              <span>Pay {cedis(bundle.price)} with PaySwitch</span>
             </>
           )}
         </button>

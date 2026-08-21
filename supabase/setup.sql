@@ -83,6 +83,31 @@ create table public.ussd_sessions (
 );
 alter table public.ussd_sessions enable row level security;
 
+-- Bundle catalogue (admin-editable, non-expiry). Public reads active rows;
+-- only signed-in admins can read inactive ones or add/edit/delete.
+-- NOTE: the seed rows live in add-bundles.sql so it can also be run on an
+-- existing database. Run add-bundles.sql after this file for a fresh setup.
+create table if not exists public.bundles (
+  id         uuid primary key default gen_random_uuid(),
+  network    text not null check (network in ('mtn','telecel')),
+  name       text not null,
+  data       text not null,
+  data_value numeric not null default 0,
+  price      numeric(10,2) not null,
+  badge      text,
+  active     boolean not null default true,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists bundles_network_idx on public.bundles (network);
+create index if not exists bundles_active_idx  on public.bundles (active);
+alter table public.bundles enable row level security;
+create policy "public read active bundles" on public.bundles for select to anon using (active = true);
+create policy "admins read all bundles"    on public.bundles for select to authenticated using (true);
+create policy "admins insert bundles"      on public.bundles for insert to authenticated with check (true);
+create policy "admins update bundles"      on public.bundles for update to authenticated using (true) with check (true);
+create policy "admins delete bundles"      on public.bundles for delete to authenticated using (true);
+
 -- Realtime so the admin dashboard updates the instant an order lands.
 do $$
 begin

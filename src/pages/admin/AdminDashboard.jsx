@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { fetchOrders, setOrderStatus } from '../../lib/api';
 import { downloadOrderSheet } from '../../lib/exportSheet';
@@ -72,7 +72,9 @@ export default function AdminDashboard() {
           <span className="nav-logo-icon">A</span>
           <span className="nav-logo-text">Anasdata Admin</span>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <Link className="nav-link active" to="/admin">Orders</Link>
+          <Link className="nav-link" to="/admin/bundles">Bundles</Link>
           <button className="btn-secondary" onClick={load}>↻ Refresh</button>
           <button className="btn-secondary" onClick={signOut}>Sign out</button>
         </div>

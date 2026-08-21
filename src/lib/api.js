@@ -1,23 +1,38 @@
 import { supabase, isSupabaseReady } from './supabase';
 
+const NOT_READY =
+  'Backend not configured. Add VITE_PUBLIC_SUPABASE_URL and VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY to .env (see README).';
+
 /**
- * Ask the backend to VERIFY a Paystack payment and record the order.
- * The Edge Function re-checks the transaction directly with Paystack using
- * the secret key, so a customer cannot fake a successful payment.
+ * Step 1 of PaySwitch checkout: record a PENDING order and get a transaction
+ * id + server-trusted amount to hand to the theTeller inline popup.
+ *
+ * @returns {Promise<{ok: boolean, transactionId?: string, amount?: string, error?: string}>}
+ */
+export async function initiatePaySwitchOrder({ bundleId, phone, email }) {
+  if (!isSupabaseReady) return { ok: false, error: NOT_READY };
+
+  const { data, error } = await supabase.functions.invoke('payswitch-initiate', {
+    body: { bundleId, phone, email },
+  });
+
+  if (error) return { ok: false, error: error.message };
+  if (data?.error) return { ok: false, error: data.error };
+  return { ok: true, transactionId: data.transaction_id, amount: data.amount };
+}
+
+/**
+ * Step 2 of PaySwitch checkout: after theTeller redirects back, ask the
+ * backend to VERIFY the payment with theTeller's status endpoint and flip the
+ * order to PAID. The customer cannot fake this — it's checked server-side.
  *
  * @returns {Promise<{ok: boolean, order?: object, error?: string}>}
  */
-export async function verifyAndRecordOrder({ reference, bundleId, phone, email }) {
-  if (!isSupabaseReady) {
-    return {
-      ok: false,
-      error:
-        'Backend not configured. Add VITE_PUBLIC_SUPABASE_URL and VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY to .env (see README).',
-    };
-  }
+export async function verifyPaySwitchPayment(transactionId) {
+  if (!isSupabaseReady) return { ok: false, error: NOT_READY };
 
-  const { data, error } = await supabase.functions.invoke('verify-payment', {
-    body: { reference, bundleId, phone, email },
+  const { data, error } = await supabase.functions.invoke('payswitch-verify', {
+    body: { transactionId },
   });
 
   if (error) return { ok: false, error: error.message };

@@ -228,13 +228,16 @@ input, select { font-family: inherit; }
   padding: 22px; transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
 }
 .bundle-card:hover { transform: translateY(-3px); border-color: var(--border-strong); box-shadow: var(--shadow-soft); }
+/* Full network-coloured cards (MTN yellow, Telecel red) */
+.bundle-card.mtn { background: #ffcc00; border-color: rgba(0, 0, 0, 0.18); color: #1a1a1a; }
+.bundle-card.telecel { background: #e2001a; border-color: rgba(0, 0, 0, 0.14); color: #fff; }
+.bundle-card.mtn:hover, .bundle-card.telecel:hover { box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4); }
 .bundle-card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 18px; }
 .bundle-network-pill {
-  padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
+  padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: 0.01em;
 }
-.bundle-network-pill.mtn { background: rgba(245, 197, 24, 0.16); color: #e7b70f; }
-.bundle-network-pill.airteltigo { background: rgba(224, 36, 60, 0.16); color: #ff6d7e; }
-.bundle-network-pill.telecel { background: rgba(214, 15, 34, 0.16); color: #ff6070; }
+.bundle-network-pill.mtn { background: #1a1a1a; color: #ffcc00; }
+.bundle-network-pill.telecel { background: #fff; color: #e2001a; }
 .bundle-badge {
   padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   background: var(--accent-soft); color: var(--accent);
@@ -242,6 +245,25 @@ input, select { font-family: inherit; }
 .bundle-badge.premium { background: rgba(139, 122, 255, 0.16); color: #a99bff; }
 .bundle-badge.power { background: rgba(217, 154, 43, 0.16); color: #e0a94a; }
 .bundle-data { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
+.bundle-data.mtn { color: #1a1a1a; }
+.bundle-data.telecel { color: #fff; }
+/* Contrast for text/borders inside the coloured cards */
+.bundle-card.mtn .bundle-name,
+.bundle-card.mtn .bundle-price-currency,
+.bundle-card.mtn .bundle-price-per,
+.bundle-card.mtn .bundle-meta-label { color: rgba(0, 0, 0, 0.6); }
+.bundle-card.mtn .bundle-meta-value,
+.bundle-card.mtn .bundle-price-amount { color: #1a1a1a; }
+.bundle-card.mtn .bundle-meta { border-color: rgba(0, 0, 0, 0.16); }
+.bundle-card.mtn .bundle-badge { background: rgba(0, 0, 0, 0.16); color: #1a1a1a; }
+.bundle-card.telecel .bundle-name,
+.bundle-card.telecel .bundle-price-currency,
+.bundle-card.telecel .bundle-price-per,
+.bundle-card.telecel .bundle-meta-label { color: rgba(255, 255, 255, 0.82); }
+.bundle-card.telecel .bundle-meta-value,
+.bundle-card.telecel .bundle-price-amount { color: #fff; }
+.bundle-card.telecel .bundle-meta { border-color: rgba(255, 255, 255, 0.25); }
+.bundle-card.telecel .bundle-badge { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .bundle-name { color: var(--text-secondary); font-size: 14px; margin-top: 2px; margin-bottom: 16px; }
 .bundle-meta { display: flex; gap: 24px; padding: 14px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 18px; }
 .bundle-meta-item { display: flex; flex-direction: column; gap: 2px; }
@@ -257,6 +279,10 @@ input, select { font-family: inherit; }
   background: var(--accent); color: #fff; transition: background 0.18s; white-space: nowrap;
 }
 .btn-buy:hover { background: var(--accent-hover); }
+.btn-buy.mtn { background: #1a1a1a; color: #fff; }
+.btn-buy.mtn:hover { background: #000; }
+.btn-buy.telecel { background: #fff; color: #e2001a; }
+.btn-buy.telecel:hover { background: #ffe3e6; }
 
 /* ─── Bundles page ─── */
 .bundles-page-header { padding: 44px 0 26px; border-bottom: 1px solid var(--border); }
@@ -305,6 +331,8 @@ input, select { font-family: inherit; }
 .order-summary-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-bottom: 14px; }
 .order-bundle-info { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .data-amount { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+.data-amount.mtn { color: #ffcc00; }
+.data-amount.telecel { color: #ff4d5e; }
 .bundle-name-full { color: var(--text-secondary); font-size: 14px; margin-top: 2px; }
 .order-bundle-right { text-align: right; }
 .price-currency { font-size: 12px; color: var(--text-muted); }

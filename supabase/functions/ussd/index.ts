@@ -6,6 +6,8 @@
 //  ...where `userData` is ONLY the latest input (not cumulative), so we
 //  persist the menu state per session in the `ussd_sessions` table.
 //
+//  Bundles + prices are read from the `bundles` table server-side.
+//
 //  We reply JSON: { userID, sessionID, msisdn, message, continueSession }.
 //  continueSession:false ends the call and shows `message` as the last screen.
 //
@@ -14,7 +16,7 @@
 //  Secrets (optional payment): ARKESEL_PAYMENT_API_KEY, plus the shared
 //    TELEGRAM_* used by _shared/notify.ts.
 // ════════════════════════════════════════════════════════════
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   NETWORKS,
   NETWORK_ORDER,
@@ -26,7 +28,7 @@ import { notifyTelegram } from '../_shared/notify.ts';
 
 const PAGE_SIZE = 5;
 
-const admin = () =>
+const admin = (): SupabaseClient =>
   createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -51,8 +53,8 @@ interface SessionState {
   recipient?: string;
 }
 
-async function loadState(sessionID: string): Promise<SessionState | null> {
-  const { data } = await admin()
+async function loadState(db: SupabaseClient, sessionID: string): Promise<SessionState | null> {
+  const { data } = await db
     .from('ussd_sessions')
     .select('state')
     .eq('session_id', sessionID)
@@ -60,14 +62,14 @@ async function loadState(sessionID: string): Promise<SessionState | null> {
   return (data?.state as SessionState) ?? null;
 }
 
-async function saveState(sessionID: string, state: SessionState) {
-  await admin()
+async function saveState(db: SupabaseClient, sessionID: string, state: SessionState) {
+  await db
     .from('ussd_sessions')
     .upsert({ session_id: sessionID, state, updated_at: new Date().toISOString() });
 }
 
-async function clearState(sessionID: string) {
-  await admin().from('ussd_sessions').delete().eq('session_id', sessionID);
+async function clearState(db: SupabaseClient, sessionID: string) {
+  await db.from('ussd_sessions').delete().eq('session_id', sessionID);
 }
 
 // ── Menu screens ──────────────────────────────────────────────
@@ -76,18 +78,29 @@ function networkMenu(): string {
   return `Welcome to Anasdata\nBuy data bundle:\n${lines.join('\n')}`;
 }
 
-function bundleMenu(network: NetworkId, page: number): string {
-  const all = bundlesByNetwork(network);
+async function bundleMenu(db: SupabaseClient, network: NetworkId, page: number): Promise<string> {
+  const all = await bundlesByNetwork(db, network);
+  if (all.length === 0) return `${NETWORKS[network].name}: no bundles available.\n9. Back`;
   const start = page * PAGE_SIZE;
   const slice = all.slice(start, start + PAGE_SIZE);
-  const lines = slice.map(
-    (b, i) => `${i + 1}. ${b.data} - ${money(b.price)} (${b.validity})`
-  );
+  const lines = slice.map((b, i) => `${i + 1}. ${b.data} - ${money(b.price)}`);
   const hasNext = start + PAGE_SIZE < all.length;
   const nav: string[] = [];
   if (hasNext) nav.push('0. More');
   nav.push('9. Back');
-  return `${NETWORKS[network].name} bundles:\n${lines.join('\n')}\n${nav.join('   ')}`;
+  return `${NETWORKS[network].name} bundles (non-expiry):\n${lines.join('\n')}\n${nav.join('   ')}`;
+}
+
+async function confirmScreen(db: SupabaseClient, bundleId: string, recipient: string): Promise<string> {
+  const b = await getBundle(db, bundleId);
+  if (!b) return 'That bundle is no longer available. Please dial again.';
+  return (
+    `Confirm order:\n` +
+    `${b.data} ${NETWORKS[b.network].name}\n` +
+    `To: ${recipient}\n` +
+    `Pay: ${money(b.price)}\n` +
+    `1. Confirm & pay\n2. Cancel`
+  );
 }
 
 // ── Payment: trigger an Arkesel mobile-money debit to the dialer ──
@@ -153,19 +166,20 @@ Deno.serve(async (req) => {
   const userID = String(body.userID ?? '');
   const msisdn = String(body.msisdn ?? '');
   const network = String(body.network ?? '');
-  const newSession =
-    body.newSession === true || body.newSession === 'true';
+  const newSession = body.newSession === true || body.newSession === 'true';
   const userData = String(body.userData ?? '').trim();
   const base = { userID, sessionID, msisdn };
+
+  const db = admin();
 
   try {
     // First dial → main menu.
     if (newSession) {
-      await saveState(sessionID, { step: 'network' });
+      await saveState(db, sessionID, { step: 'network' });
       return reply(base, networkMenu(), true);
     }
 
-    const state = await loadState(sessionID);
+    const state = await loadState(db, sessionID);
     if (!state) {
       return reply(base, 'Session expired. Please dial the code again.', false);
     }
@@ -175,35 +189,34 @@ Deno.serve(async (req) => {
       const idx = parseInt(userData, 10) - 1;
       const net = NETWORK_ORDER[idx];
       if (!net) return reply(base, `Invalid choice.\n${networkMenu()}`, true);
-      const next: SessionState = { step: 'bundle', network: net, page: 0 };
-      await saveState(sessionID, next);
-      return reply(base, bundleMenu(net, 0), true);
+      await saveState(db, sessionID, { step: 'bundle', network: net, page: 0 });
+      return reply(base, await bundleMenu(db, net, 0), true);
     }
 
     // ── STEP: choose bundle (paginated) ──
     if (state.step === 'bundle') {
       const net = state.network!;
-      const all = bundlesByNetwork(net);
+      const all = await bundlesByNetwork(db, net);
       const page = state.page ?? 0;
 
       if (userData === '9') {
-        await saveState(sessionID, { step: 'network' });
+        await saveState(db, sessionID, { step: 'network' });
         return reply(base, networkMenu(), true);
       }
       if (userData === '0') {
         const hasNext = (page + 1) * PAGE_SIZE < all.length;
         const nextPage = hasNext ? page + 1 : page;
-        await saveState(sessionID, { ...state, page: nextPage });
-        return reply(base, bundleMenu(net, nextPage), true);
+        await saveState(db, sessionID, { ...state, page: nextPage });
+        return reply(base, await bundleMenu(db, net, nextPage), true);
       }
 
       const n = parseInt(userData, 10);
       const chosen = all[page * PAGE_SIZE + (n - 1)];
       if (!n || n < 1 || n > PAGE_SIZE || !chosen) {
-        return reply(base, `Invalid choice.\n${bundleMenu(net, page)}`, true);
+        return reply(base, `Invalid choice.\n${await bundleMenu(db, net, page)}`, true);
       }
 
-      await saveState(sessionID, { step: 'recipient', bundleId: chosen.id, network: net });
+      await saveState(db, sessionID, { step: 'recipient', bundleId: chosen.id, network: net });
       const own = toLocal(msisdn);
       return reply(
         base,
@@ -216,11 +229,11 @@ Deno.serve(async (req) => {
     if (state.step === 'recipient') {
       if (userData === '1') {
         const own = toLocal(msisdn);
-        await saveState(sessionID, { ...state, step: 'confirm', recipient: own });
-        return reply(base, confirmScreen(state.bundleId!, own), true);
+        await saveState(db, sessionID, { ...state, step: 'confirm', recipient: own });
+        return reply(base, await confirmScreen(db, state.bundleId!, own), true);
       }
       if (userData === '2') {
-        await saveState(sessionID, { ...state, step: 'enterNumber' });
+        await saveState(db, sessionID, { ...state, step: 'enterNumber' });
         return reply(base, 'Enter recipient number (e.g. 0244123456):', true);
       }
       return reply(base, 'Reply 1 for this number or 2 for another number.', true);
@@ -232,18 +245,22 @@ Deno.serve(async (req) => {
       if (!isGhPhone(rec)) {
         return reply(base, 'Invalid number. Enter a 10-digit number (e.g. 0244123456):', true);
       }
-      await saveState(sessionID, { ...state, step: 'confirm', recipient: rec });
-      return reply(base, confirmScreen(state.bundleId!, rec), true);
+      await saveState(db, sessionID, { ...state, step: 'confirm', recipient: rec });
+      return reply(base, await confirmScreen(db, state.bundleId!, rec), true);
     }
 
     // ── STEP: confirm & pay ──
     if (state.step === 'confirm') {
       if (userData !== '1') {
-        await clearState(sessionID);
+        await clearState(db, sessionID);
         return reply(base, 'Order cancelled. Thank you.', false);
       }
 
-      const bundle = getBundle(state.bundleId!)!;
+      const bundle = await getBundle(db, state.bundleId!);
+      if (!bundle) {
+        await clearState(db, sessionID);
+        return reply(base, 'That bundle is no longer available. Please dial again.', false);
+      }
       const recipient = state.recipient!;
       const reference = `USSD_${Date.now()}_${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
@@ -263,7 +280,7 @@ Deno.serve(async (req) => {
         payment_ref: reference,
         payer_phone: toLocal(msisdn),
       };
-      const { data: inserted } = await admin().from('orders').insert(order).select().single();
+      const { data: inserted } = await db.from('orders').insert(order).select().single();
 
       const charge = await initiateCharge({
         reference,
@@ -272,7 +289,7 @@ Deno.serve(async (req) => {
         network,
       });
 
-      await clearState(sessionID);
+      await clearState(db, sessionID);
 
       // Let you know a USSD order came in (even before payment approves).
       if (inserted) await notifyTelegram(inserted);
@@ -303,14 +320,3 @@ Deno.serve(async (req) => {
     return reply(base, `Service error: ${(err as Error).message}. Please try again.`, false);
   }
 });
-
-function confirmScreen(bundleId: string, recipient: string): string {
-  const b = getBundle(bundleId)!;
-  return (
-    `Confirm order:\n` +
-    `${b.data} ${NETWORKS[b.network].name}\n` +
-    `To: ${recipient}\n` +
-    `Pay: ${money(b.price)}\n` +
-    `1. Confirm & pay\n2. Cancel`
-  );
-}

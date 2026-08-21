@@ -28,7 +28,7 @@ export default function BundleCard({ bundle }) {
       <div className="bundle-meta">
         <div className="bundle-meta-item">
           <span className="bundle-meta-label">Validity</span>
-          <span className="bundle-meta-value">{bundle.duration} {bundle.durationUnit}</span>
+          <span className="bundle-meta-value">Non-expiry</span>
         </div>
         <div className="bundle-meta-item">
           <span className="bundle-meta-label">Network</span>
