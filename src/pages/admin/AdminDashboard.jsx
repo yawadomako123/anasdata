@@ -57,6 +57,18 @@ export default function AdminDashboard() {
     load();
   }
 
+  // Manually set an order to ANY status — including reverting a mistake
+  // (e.g. Loaded → Processing). Confirms first to avoid accidental changes.
+  async function changeStatus(order, newStatus) {
+    if (!newStatus || newStatus === order.status) return;
+    const label = STATUS[newStatus]?.text || newStatus;
+    if (!window.confirm(`Change ${order.phone} (${order.data}) status to “${label}”?`)) return;
+    const res = await setOrderStatus(order.id, newStatus);
+    if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
+    toast(`✅ ${order.phone} → ${label}`, 'success');
+    load();
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     navigate('/admin/login', { replace: true });
@@ -133,7 +145,7 @@ export default function AdminDashboard() {
                   <th>Network</th>
                   <th>Amount</th>
                   <th>Status</th>
-                  <th>Action</th>
+                  <th>Action / Change</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,11 +171,23 @@ export default function AdminDashboard() {
                       <td className="strong">{cedis(o.price)}</td>
                       <td><StatusBadge status={o.status} /></td>
                       <td>
-                        {next ? (
-                          <button className="btn-mini" onClick={() => advance(o)}>{next.label}</button>
-                        ) : (
-                          <span className="muted small">—</span>
-                        )}
+                        <div className="admin-actions">
+                          {next && (
+                            <button className="btn-mini" onClick={() => advance(o)}>{next.label}</button>
+                          )}
+                          <select
+                            className="status-select"
+                            value={o.status}
+                            onChange={(e) => changeStatus(o, e.target.value)}
+                            title="Change or revert status"
+                          >
+                            <option value="pending">Awaiting payment</option>
+                            <option value="paid">New / Paid</option>
+                            <option value="processing">Processing</option>
+                            <option value="done">Loaded</option>
+                            <option value="failed">Failed</option>
+                          </select>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -494,6 +494,14 @@ a.footer-link:hover { color: var(--text); }
   background: var(--accent); color: #fff; transition: background 0.15s;
 }
 .btn-mini:hover { background: var(--accent-hover); }
+.admin-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.status-select {
+  background: var(--bg-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  color: var(--text-secondary); padding: 7px 11px; font-size: 13px; font-weight: 600;
+  cursor: pointer; outline: none; transition: border-color 0.15s, color 0.15s;
+}
+.status-select:hover { color: var(--text); border-color: var(--accent); }
+.status-select:focus { border-color: var(--accent); }
 
 /* ─── Responsive ─── */
 @media (max-width: 900px) {
