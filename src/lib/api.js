@@ -2,6 +2,19 @@ import { supabase, isSupabaseReady } from './supabase';
 
 const NOT_READY = 'Service is temporarily unavailable. Please try again later.';
 
+// When an Edge Function returns a non-2xx status, supabase-js only gives a
+// generic "Edge Function returned a non-2xx status code". The real message is
+// in the response body — pull it out so the customer/console sees the reason.
+async function readFnError(error) {
+  try {
+    const body = await error?.context?.json?.();
+    if (body?.error) return body.error;
+  } catch {
+    /* ignore — fall through to the generic message */
+  }
+  return error?.message || 'Something went wrong. Please try again.';
+}
+
 /**
  * Step 1 of PaySwitch checkout: record a PENDING order and get a transaction
  * id + server-trusted amount to hand to the theTeller inline popup.
@@ -15,7 +28,7 @@ export async function initiatePaySwitchOrder({ bundleId, phone, email }) {
     body: { bundleId, phone, email },
   });
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: await readFnError(error) };
   if (data?.error) return { ok: false, error: data.error };
   return { ok: true, transactionId: data.transaction_id, amount: data.amount };
 }
@@ -34,7 +47,7 @@ export async function verifyPaySwitchPayment(transactionId) {
     body: { transactionId },
   });
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: await readFnError(error) };
   if (data?.error) return { ok: false, error: data.error };
   return { ok: true, order: data.order };
 }

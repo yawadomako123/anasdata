@@ -98,8 +98,11 @@ Deno.serve(async (req) => {
       return json({ error: `Payment not successful (${result.reason ?? status ?? 'unknown'}).` }, 402);
     }
 
-    // Confirm the amount charged matches the real bundle price.
-    if (!amountMatches(result.amount, Number(order.price))) {
+    // Confirm the amount matches the real bundle price. theTeller adds the
+    // Ghana E-Levy/surcharge to `amount` (e.g. 4.70 -> 4.75), so we compare
+    // against `original_amount`, the pre-levy amount we submitted.
+    const baseAmount = result.original_amount ?? result.taxable_amount ?? result.amount;
+    if (!amountMatches(baseAmount, Number(order.price))) {
       return json({ error: 'Amount mismatch — payment rejected.' }, 402);
     }
 
