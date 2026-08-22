@@ -52,16 +52,19 @@ export async function verifyPaySwitchPayment(transactionId) {
   return { ok: true, order: data.order };
 }
 
-/** Look up a single order by its reference (for the public "Track order" page). */
-export async function getOrderByReference(reference) {
-  if (!isSupabaseReady) return { ok: false, error: 'Backend not configured.' };
-  // Uses a SECURITY DEFINER function so only the exact-matching row is returned
-  // (customers can't list or enumerate other people's orders).
-  const { data, error } = await supabase.rpc('get_order_by_reference', {
-    p_ref: reference.trim(),
+/**
+ * Public "Track order" lookup, by phone number OR order reference. Returns a
+ * list (one phone may have several orders). The exact typed value is matched
+ * server-side, so customers can't enumerate other people's orders.
+ */
+export async function trackOrder(query) {
+  if (!isSupabaseReady) return { ok: false, error: NOT_READY };
+  const { data, error } = await supabase.functions.invoke('track-order', {
+    body: { query },
   });
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, order: Array.isArray(data) ? data[0] || null : data };
+  if (error) return { ok: false, error: await readFnError(error) };
+  if (data?.error) return { ok: false, error: data.error };
+  return { ok: true, orders: data.orders ?? [] };
 }
 
 // ── Admin-only (requires an authenticated Supabase session) ──

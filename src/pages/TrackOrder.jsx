@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getOrderByReference } from '../lib/api';
+import { trackOrder } from '../lib/api';
 import { cedis, prettyDate } from '../lib/format';
 
 const STATUS_LABEL = {
@@ -13,31 +13,30 @@ const STATUS_LABEL = {
 
 export default function TrackOrder() {
   const { state } = useLocation();
-  const [ref, setRef] = useState(state?.reference || '');
-  const [order, setOrder] = useState(null);
+  const [query, setQuery] = useState(state?.reference || '');
+  const [orders, setOrders] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
-  async function lookup(reference) {
-    if (!reference.trim()) return;
+  async function lookup(value) {
+    const q = (value || '').trim();
+    if (!q) return;
     setLoading(true);
     setError('');
-    setOrder(null);
-    const res = await getOrderByReference(reference);
+    setOrders([]);
+    const res = await trackOrder(q);
     setLoading(false);
     setSearched(true);
     if (!res.ok) return setError(res.error);
-    setOrder(res.order);
+    setOrders(res.orders);
   }
 
-  // auto-lookup if we arrived from the success page
+  // Auto-lookup if we arrived from the success page (by reference).
   useEffect(() => {
     if (state?.reference) lookup(state.reference);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const status = order && (STATUS_LABEL[order.status] || STATUS_LABEL.paid);
 
   return (
     <div className="track-page container">
@@ -45,47 +44,58 @@ export default function TrackOrder() {
         <div className="section-header" style={{ marginBottom: 24 }}>
           <span className="section-tag">Track</span>
           <h2 className="section-title">Track Your Order</h2>
-          <p className="section-sub">Enter the reference from your receipt to see its status.</p>
+          <p className="section-sub">
+            Enter the phone number you topped up, or your order reference.
+          </p>
         </div>
 
         <div className="track-form">
           <input
             className="form-input"
-            placeholder="e.g. BDL_1712345678_AB12CD"
-            value={ref}
-            onChange={(e) => setRef(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && lookup(ref)}
+            placeholder="e.g. 0244123456 or order reference"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && lookup(query)}
           />
-          <button className="btn-primary" onClick={() => lookup(ref)} disabled={loading}>
+          <button className="btn-primary" onClick={() => lookup(query)} disabled={loading}>
             {loading ? <span className="spinner" /> : 'Track'}
           </button>
         </div>
 
         {error && <div className="banner-warn" style={{ marginTop: 20 }}>⚠️ {error}</div>}
 
-        {searched && !error && !order && (
+        {searched && !error && orders.length === 0 && (
           <div className="no-bundles" style={{ marginTop: 20 }}>
             <div className="no-bundles-icon">🔍</div>
             <h3>No order found</h3>
-            <p>Double-check the reference. It looks like <code>BDL_…</code></p>
+            <p>Double-check the phone number or reference and try again.</p>
           </div>
         )}
 
-        {order && (
-          <div className="track-result">
-            <div className={`track-status-badge ${status.cls}`}>
-              {status.icon} {status.text}
-            </div>
-            <div className="success-detail-grid" style={{ marginTop: 20 }}>
-              <Detail label="Reference" value={order.reference} />
-              <Detail label="Bundle" value={order.bundle_name} />
-              <Detail label="Data" value={order.data} />
-              <Detail label="Phone" value={order.phone} />
-              <Detail label="Amount" value={cedis(order.price)} />
-              <Detail label="Ordered" value={prettyDate(order.created_at)} />
-            </div>
-          </div>
+        {orders.length > 1 && (
+          <p className="muted small" style={{ marginTop: 20 }}>
+            {orders.length} orders found for this number
+          </p>
         )}
+
+        {orders.map((order) => {
+          const status = STATUS_LABEL[order.status] || STATUS_LABEL.paid;
+          return (
+            <div className="track-result" key={order.reference} style={{ marginTop: 16 }}>
+              <div className={`track-status-badge ${status.cls}`}>
+                {status.icon} {status.text}
+              </div>
+              <div className="success-detail-grid" style={{ marginTop: 20 }}>
+                <Detail label="Reference" value={order.reference} />
+                <Detail label="Bundle" value={order.bundle_name} />
+                <Detail label="Data" value={order.data} />
+                <Detail label="Phone" value={order.phone} />
+                <Detail label="Amount" value={cedis(order.price)} />
+                <Detail label="Ordered" value={prettyDate(order.created_at)} />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

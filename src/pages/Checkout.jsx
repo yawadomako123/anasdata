@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { NETWORKS } from '../lib/data';
 import { fetchBundleById } from '../lib/bundles';
-import { isValidGhPhone, isValidEmail, cedis } from '../lib/format';
+import { isValidGhPhone, cedis } from '../lib/format';
 import { openPaySwitchInline, isPaySwitchConfigured } from '../lib/payswitch';
 import { initiatePaySwitchOrder } from '../lib/api';
 import { useToast } from '../components/Toast.jsx';
@@ -16,7 +16,6 @@ export default function Checkout() {
   const [loading, setLoading] = useState(true);
 
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [touched, setTouched] = useState({});
   const [busy, setBusy] = useState('');
 
@@ -61,16 +60,18 @@ export default function Checkout() {
 
   const net = NETWORKS[bundle.network];
   const phoneOk = isValidGhPhone(phone);
-  const emailOk = isValidEmail(email);
 
   async function handlePay() {
-    setTouched({ phone: true, email: true });
+    setTouched({ phone: true });
     if (!phoneOk) return toast('⚠️ Enter a valid Ghana phone number', 'error');
-    if (!emailOk) return toast('⚠️ Enter a valid email address', 'error');
+
+    // theTeller's popup requires an email field, but we no longer collect one,
+    // so we derive a harmless placeholder from the phone number.
+    const receiptEmail = `${phone}@nomail.anasdata.app`;
 
     try {
       setBusy('Starting secure payment…');
-      const init = await initiatePaySwitchOrder({ bundleId: bundle.id, phone, email });
+      const init = await initiatePaySwitchOrder({ bundleId: bundle.id, phone });
       if (!init.ok) {
         toast(`⚠️ ${init.error}`, 'error', 6000);
         setBusy('');
@@ -85,7 +86,7 @@ export default function Checkout() {
       await openPaySwitchInline({
         transactionId: init.transactionId,
         amount: init.amount,
-        email,
+        email: receiptEmail,
         description: `${bundle.name} to ${phone}`,
         redirectUrl: `${window.location.origin}/payment/return`,
         onClose: () => setBusy(''), // customer dismissed the popup
@@ -145,23 +146,6 @@ export default function Checkout() {
             <div className="form-hint">📱 The bundle will be loaded to this number</div>
             {touched.phone && !phoneOk && (
               <div className="form-error show">Enter a valid 10-digit Ghana number (e.g. 0244123456)</div>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="email">Email Address <span>*</span></label>
-            <input
-              id="email"
-              type="email"
-              className="form-input"
-              placeholder="e.g. you@gmail.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-            />
-            <div className="form-hint">📧 Your payment receipt goes here</div>
-            {touched.email && !emailOk && (
-              <div className="form-error show">Enter a valid email address</div>
             )}
           </div>
         </div>
