@@ -1,15 +1,16 @@
 // ════════════════════════════════════════════════════════════
-//  frog-ussd  —  Wigal Frog "Smart USSD V2" handler (Deno)
+//  frog-ussd  —  Wigal Frog USSD handler (Deno), V1 + V2
 //
-//  Wigal POSTs JSON per keypress:
-//    { network, sessionid, mode, phonenumber, userdata, username, trafficid, other }
-//    mode: START (new) | MORE (input) | END (closed)
-//  We reply the SAME object with mode:"more"|"end" and userdata = screen text.
-//  Only the latest keypress is sent, so menu state lives in `ussd_sessions`.
-//  Max 160 chars per screen — menu text is kept compact.
+//  Handles BOTH Wigal versions so it works whichever the shortcode uses:
+//   • V2: POST JSON  { network, sessionid, mode, phonenumber, userdata,
+//                      username, trafficid, other }  → reply JSON.
+//   • V1: GET  query { network, sessionid, mode, msisdn, userdata,
+//                      username, trafficid, other }   → reply pipe string
+//         NETWORK|MODE|MSISDN|SESSIONID|USERDATA|USERNAME|TRAFFICID|OTHER
+//  Only the latest keypress is sent, so menu state lives in ussd_sessions.
+//  Max 160 chars/screen; V1 line breaks use ^.
 //
-//  Deploy (public — Wigal sends no JWT):
-//    supabase functions deploy frog-ussd --no-verify-jwt
+//  Deploy: supabase functions deploy frog-ussd --no-verify-jwt
 // ════════════════════════════════════════════════════════════
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
@@ -22,7 +23,7 @@ import {
 import { notifyTelegram } from '../_shared/notify.ts';
 import { initiateMomoCharge, makeTxnId } from '../_shared/theteller.ts';
 
-const PAGE_SIZE = 4; // keep each screen under Wigal's 160-char limit
+const PAGE_SIZE = 4;
 
 const admin = (): SupabaseClient =>
   createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -77,46 +78,76 @@ async function confirmScreen(db: SupabaseClient, bundleId: string, recipient: st
   return `${b.data} ${NETWORKS[b.network].name}\nTo: ${recipient}\nPay ${money(b.price)}\n1. Confirm\n2. Cancel`;
 }
 
-// Reply in Wigal's shape: echo the request, set mode + userdata.
-function reply(req: Record<string, unknown>, userdata: string, cont: boolean) {
+// Reply in V1 (pipe) or V2 (JSON) depending on how we were called.
+function reply(req: Record<string, unknown>, message: string, cont: boolean) {
+  const phone = String(req.phonenumber ?? req.msisdn ?? '');
+  if (req.__isV1 === true) {
+    const line = [
+      req.network ?? '',
+      cont ? 'MORE' : 'END',
+      phone,
+      req.sessionid ?? '',
+      message.replace(/\n/g, '^'),
+      req.username ?? '',
+      req.trafficid ?? '',
+      req.other ?? '',
+    ].join('|');
+    return new Response(line, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain; charset=UTF-8' },
+    });
+  }
   return new Response(
     JSON.stringify({
       network: req.network ?? '',
       sessionid: req.sessionid ?? '',
       mode: cont ? 'more' : 'end',
-      phonenumber: req.phonenumber ?? '',
-      userdata,
+      phonenumber: phone,
+      userdata: message,
       username: req.username ?? '',
       trafficid: req.trafficid ?? '',
       other: req.other ?? '',
     }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } }
+    { status: 200, headers: { 'Content-Type': 'application/json; charset=UTF-8' } }
   );
 }
 
 Deno.serve(async (req) => {
-  if (req.method !== 'POST') return new Response('Anasdata USSD (Wigal Frog)', { status: 200 });
-
+  // Parse either a V2 POST (JSON/form) or a V1 GET (query string).
   let body: Record<string, unknown> = {};
-  try {
-    body = await req.json();
-  } catch {
+  let isV1 = false;
+
+  if (req.method === 'GET') {
+    const p = new URL(req.url).searchParams;
+    p.forEach((v, k) => (body[k] = v));
+    // A bare GET with no USSD params is just a health check / browser hit.
+    if (!body.sessionid && !body.mode) {
+      return new Response('Anasdata USSD (Wigal Frog) — ready', { status: 200 });
+    }
+    isV1 = true;
+  } else if (req.method === 'POST') {
     try {
-      const form = await req.formData();
-      form.forEach((v, k) => (body[k] = v));
-    } catch { /* ignore */ }
+      body = await req.json();
+    } catch {
+      try {
+        const form = await req.formData();
+        form.forEach((v, k) => (body[k] = v));
+      } catch { /* ignore */ }
+    }
+  } else {
+    return new Response('Anasdata USSD (Wigal Frog) — ready', { status: 200 });
   }
+  body.__isV1 = isV1;
+
+  const db = admin();
 
   const sessionid = String(body.sessionid ?? '');
-  const phonenumber = String(body.phonenumber ?? '');
+  const phone = String(body.phonenumber ?? body.msisdn ?? '');
   const network = String(body.network ?? '');
   const mode = String(body.mode ?? '').toUpperCase();
   const userdata = String(body.userdata ?? '').trim();
-  const db = admin();
 
   try {
-    // First interaction. Wigal's first userdata is the dialed code, not a menu
-    // choice, so we just open the main menu.
     if (mode === 'START') {
       await saveState(db, sessionid, { step: 'network' });
       return reply(body, networkMenu(), true);
@@ -157,14 +188,14 @@ Deno.serve(async (req) => {
         return reply(body, `Invalid.\n${await bundleMenu(db, net, page)}`, true);
       }
       await saveState(db, sessionid, { step: 'recipient', bundleId: chosen.id, network: net });
-      const own = toLocal(phonenumber);
+      const own = toLocal(phone);
       return reply(body, `${chosen.data} ${money(chosen.price)}\nLoad to:\n1. This No (${own})\n2. Other No`, true);
     }
 
     // whose number
     if (state.step === 'recipient') {
       if (userdata === '1') {
-        const own = toLocal(phonenumber);
+        const own = toLocal(phone);
         await saveState(db, sessionid, { ...state, step: 'confirm', recipient: own });
         return reply(body, await confirmScreen(db, state.bundleId!, own), true);
       }
@@ -195,61 +226,62 @@ Deno.serve(async (req) => {
         return reply(body, 'Bundle unavailable. Dial again.', false);
       }
       const recipient = state.recipient!;
-      // theTeller needs a 12-digit numeric transaction id; use it as our ref.
       const reference = makeTxnId();
-      const order = {
-        reference,
-        bundle_id: bundle.id,
-        bundle_name: bundle.name,
-        network: bundle.network,
-        data: bundle.data,
-        price: bundle.price,
-        phone: recipient,
-        email: null,
-        status: 'pending',
-        channel: 'ussd',
-        payment_method: 'theteller-momo',
-        payment_ref: reference,
-        payer_phone: toLocal(phonenumber),
-      };
-      const { data: inserted } = await db.from('orders').insert(order).select().single();
-
-      // Debit the DIALER's Mobile Money (they get a PIN prompt). r-switch is
-      // derived from the network the USSD call came in on.
-      const charge = await initiateMomoCharge({
-        transactionId: reference,
-        amountGhs: bundle.price,
-        subscriberNumber: phonenumber,
-        network,
-        desc: `${bundle.name} to ${recipient}`,
-      });
+      const { data: inserted } = await db
+        .from('orders')
+        .insert({
+          reference,
+          bundle_id: bundle.id,
+          bundle_name: bundle.name,
+          network: bundle.network,
+          data: bundle.data,
+          price: bundle.price,
+          phone: recipient,
+          email: null,
+          status: 'pending',
+          channel: 'ussd',
+          payment_method: 'theteller-momo',
+          payment_ref: reference,
+          payer_phone: toLocal(phone),
+        })
+        .select()
+        .single();
 
       await clearState(db, sessionid);
-      if (inserted) await notifyTelegram(inserted);
 
-      if (charge === 'sent') {
-        return reply(
-          body,
-          `Approve ${money(bundle.price)} with your MoMo PIN to load ${bundle.data} to ${recipient}. Dial *170# if no prompt. Ref ${reference}`,
-          false
-        );
-      }
-      if (charge === 'skipped') {
-        return reply(
-          body,
-          `Order received. ${bundle.data} to ${recipient}. We'll contact you to complete payment. Ref ${reference}`,
-          false
-        );
-      }
+      // The theTeller MoMo charge (and Telegram ping) are slow external calls.
+      // USSD gateways time out in a few seconds, so we run them in the
+      // BACKGROUND and reply instantly. theTeller sends the customer's MoMo
+      // PIN prompt out-of-band, so ending the USSD session here is fine.
+      const background = (async () => {
+        try {
+          await initiateMomoCharge({
+            transactionId: reference,
+            amountGhs: bundle.price,
+            subscriberNumber: phone,
+            network,
+            desc: `${bundle.name} to ${recipient}`,
+          });
+        } catch { /* order stays pending; admin can reconcile */ }
+        try {
+          if (inserted) await notifyTelegram(inserted);
+        } catch { /* ignore */ }
+      })();
+      // Keep the isolate alive until the background work finishes.
+      try {
+        (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } })
+          .EdgeRuntime?.waitUntil?.(background);
+      } catch { /* not available locally — fine */ }
+
       return reply(
         body,
-        `Couldn't start payment. Please try again shortly. Ref ${reference}`,
+        `To pay ${money(bundle.price)}: approve in your MoMo app, or dial *170# then Approvals. ${bundle.data} loads to ${recipient} after payment. Ref ${reference}`,
         false
       );
     }
 
     return reply(body, 'Error. Please dial again.', false);
-  } catch (err) {
-    return reply(body, `Service error. Try again.`, false);
+  } catch (_err) {
+    return reply(body, 'Service error. Try again.', false);
   }
 });
