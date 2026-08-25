@@ -82,3 +82,9 @@ export async function setOrderStatus(id, status) {
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+export async function deleteOrder(id) {
+  const { error } = await supabase.from('orders').delete().eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

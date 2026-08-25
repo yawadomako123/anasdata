@@ -502,6 +502,12 @@ a.footer-link:hover { color: var(--text); }
 }
 .status-select:hover { color: var(--text); border-color: var(--accent); }
 .status-select:focus { border-color: var(--accent); }
+.btn-del {
+  padding: 7px 10px; border-radius: var(--radius-sm); font-size: 14px; line-height: 1;
+  background: transparent; border: 1px solid var(--border-strong); color: var(--text-muted);
+  cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.btn-del:hover { color: #fff; background: var(--error); border-color: var(--error); }
 
 /* ─── Responsive ─── */
 @media (max-width: 900px) {

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { fetchOrders, setOrderStatus } from '../../lib/api';
+import { fetchOrders, setOrderStatus, deleteOrder } from '../../lib/api';
 import { downloadOrderSheet } from '../../lib/exportSheet';
 import { cedis, prettyDate } from '../../lib/format';
 import { NETWORKS } from '../../lib/data';
@@ -66,6 +66,14 @@ export default function AdminDashboard() {
     const res = await setOrderStatus(order.id, newStatus);
     if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
     toast(`✅ ${order.phone} → ${label}`, 'success');
+    load();
+  }
+
+  async function removeOrder(order) {
+    if (!window.confirm(`Delete order ${order.reference} (${order.phone})? This cannot be undone.`)) return;
+    const res = await deleteOrder(order.id);
+    if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
+    toast('🗑 Order deleted', 'success');
     load();
   }
 
@@ -187,6 +195,9 @@ export default function AdminDashboard() {
                             <option value="done">Loaded</option>
                             <option value="failed">Failed</option>
                           </select>
+                          <button className="btn-del" onClick={() => removeOrder(o)} title="Delete order">
+                            🗑
+                          </button>
                         </div>
                       </td>
                     </tr>
