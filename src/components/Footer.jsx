@@ -30,10 +30,13 @@ export default function Footer() {
           </div>
         </div>
         <div>
-          <div className="footer-col-title">Balance Check</div>
+          <div className="footer-col-title">Support</div>
           <div className="footer-links">
-            <span className="footer-note">MTN &nbsp;*138#</span>
-            <span className="footer-note">Telecel &nbsp;*700#</span>
+            <a className="footer-link" href="tel:0592079246">📞 059 207 9246</a>
+            <a className="footer-link" href="mailto:qwekubhadest1414@gmail.com" style={{ wordBreak: 'break-all' }}>
+              ✉️ qwekubhadest1414@gmail.com
+            </a>
+            <span className="footer-note">Balance: MTN *138# · Telecel *700#</span>
           </div>
         </div>
       </div>

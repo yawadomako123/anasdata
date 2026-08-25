@@ -83,6 +83,26 @@ export async function createBundle({ network, name, data, dataValue, price, badg
   return { ok: true, bundle: mapBundle(inserted) };
 }
 
+export async function updateBundle(id, { network, name, data, dataValue, price, badge }) {
+  if (!isSupabaseReady) return NOT_READY;
+  const row = {
+    network,
+    name: name.trim(),
+    data: data.trim(),
+    data_value: Number(dataValue) || 0,
+    price: Number(price),
+    badge: badge?.trim() || null,
+  };
+  const { data: updated, error } = await supabase
+    .from('bundles')
+    .update(row)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, bundle: mapBundle(updated) };
+}
+
 export async function deleteBundle(id) {
   if (!isSupabaseReady) return NOT_READY;
   const { error } = await supabase.from('bundles').delete().eq('id', id);

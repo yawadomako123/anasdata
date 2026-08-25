@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { NETWORKS } from '../../lib/data';
-import { fetchAllBundles, createBundle, deleteBundle, setBundleActive } from '../../lib/bundles';
+import { fetchAllBundles, createBundle, updateBundle, deleteBundle, setBundleActive } from '../../lib/bundles';
 import { cedis } from '../../lib/format';
 import { useToast } from '../../components/Toast.jsx';
 
@@ -14,6 +14,7 @@ export default function AdminBundles() {
   const [bundles, setBundles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(EMPTY);
+  const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -30,18 +31,37 @@ export default function AdminBundles() {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  async function add(e) {
+  async function submit(e) {
     e.preventDefault();
     if (!form.name.trim() || !form.data.trim() || form.price === '') {
       return toast('⚠️ Fill in name, data size and price', 'error');
     }
     setSaving(true);
-    const res = await createBundle(form);
+    const res = editingId ? await updateBundle(editingId, form) : await createBundle(form);
     setSaving(false);
     if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
-    toast(`✅ Added ${res.bundle.name}`, 'success');
+    toast(editingId ? `✅ Updated ${res.bundle.name}` : `✅ Added ${res.bundle.name}`, 'success');
     setForm(EMPTY);
+    setEditingId(null);
     load();
+  }
+
+  function startEdit(b) {
+    setEditingId(b.id);
+    setForm({
+      network: b.network,
+      name: b.name,
+      data: b.data,
+      dataValue: String(b.dataValue ?? ''),
+      price: String(b.price ?? ''),
+      badge: b.badge || '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(EMPTY);
   }
 
   async function remove(b) {
@@ -78,10 +98,10 @@ export default function AdminBundles() {
       </header>
 
       <div className="admin-body">
-        {/* Add bundle */}
-        <h3 style={{ marginBottom: 12 }}>Add a bundle</h3>
+        {/* Add / edit bundle */}
+        <h3 style={{ marginBottom: 12 }}>{editingId ? 'Edit bundle' : 'Add a bundle'}</h3>
         <div style={{ marginBottom: 24 }}>
-          <form className="filters-bar" onSubmit={add} style={{ marginBottom: 0 }}>
+          <form className="filters-bar" onSubmit={submit} style={{ marginBottom: 0 }}>
             <div className="filter-group">
               <div className="filter-label">Network</div>
               <select className="filter-select" value={form.network} onChange={(e) => set('network', e.target.value)}>
@@ -110,10 +130,15 @@ export default function AdminBundles() {
               <div className="filter-label">Badge (optional)</div>
               <input className="filter-select" placeholder="Popular" value={form.badge} onChange={(e) => set('badge', e.target.value)} />
             </div>
-            <div className="filter-group" style={{ justifyContent: 'flex-end' }}>
+            <div className="filter-group" style={{ justifyContent: 'flex-end', flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
               <button className="btn-primary" type="submit" disabled={saving}>
-                {saving ? <span className="spinner" /> : '+ Add bundle'}
+                {saving ? <span className="spinner" /> : editingId ? 'Save changes' : '+ Add bundle'}
               </button>
+              {editingId && (
+                <button type="button" className="btn-secondary" onClick={cancelEdit} disabled={saving}>
+                  Cancel
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -162,6 +187,9 @@ export default function AdminBundles() {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn-mini" onClick={() => startEdit(b)}>
+                            Edit
+                          </button>
                           <button className="btn-mini" onClick={() => toggle(b)}>
                             {b.active ? 'Hide' : 'Show'}
                           </button>
