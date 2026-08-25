@@ -36,7 +36,6 @@ export default function Footer() {
             <a className="footer-link" href="mailto:qwekubhadest1414@gmail.com" style={{ wordBreak: 'break-all' }}>
               ✉️ qwekubhadest1414@gmail.com
             </a>
-            <span className="footer-note">Balance: MTN *138# · Telecel *700#</span>
           </div>
         </div>
       </div>
