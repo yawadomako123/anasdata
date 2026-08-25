@@ -16,21 +16,21 @@ async function readFnError(error) {
 }
 
 /**
- * Step 1 of PaySwitch checkout: record a PENDING order and get a transaction
- * id + server-trusted amount to hand to the theTeller inline popup.
+ * Step 1 of PaySwitch standard checkout: the server records a PENDING order,
+ * calls theTeller /initiate, and returns a hosted checkout_url to redirect to.
  *
- * @returns {Promise<{ok: boolean, transactionId?: string, amount?: string, error?: string}>}
+ * @returns {Promise<{ok: boolean, transactionId?: string, checkoutUrl?: string, error?: string}>}
  */
-export async function initiatePaySwitchOrder({ bundleId, phone, email }) {
+export async function initiatePaySwitchOrder({ bundleId, phone, redirectUrl }) {
   if (!isSupabaseReady) return { ok: false, error: NOT_READY };
 
   const { data, error } = await supabase.functions.invoke('payswitch-initiate', {
-    body: { bundleId, phone, email },
+    body: { bundleId, phone, redirectUrl },
   });
 
   if (error) return { ok: false, error: await readFnError(error) };
   if (data?.error) return { ok: false, error: data.error };
-  return { ok: true, transactionId: data.transaction_id, amount: data.amount };
+  return { ok: true, transactionId: data.transaction_id, checkoutUrl: data.checkout_url };
 }
 
 /**

@@ -1,14 +1,18 @@
 // ════════════════════════════════════════════════════════════
 //  payswitch-initiate  —  Supabase Edge Function (Deno)
 //
-//  Called BEFORE the theTeller inline popup opens. It:
+//  theTeller STANDARD CHECKOUT (redirect flow). It:
 //    1. Looks up the bundle price from the DB (never trusts the client).
 //    2. Generates a 12-digit transaction id.
-//    3. Records a PENDING order keyed by that transaction id.
-//    4. Returns { transaction_id, amount } for the inline popup.
+//    3. Calls theTeller /initiate (server-side, Basic auth) to get a
+//       hosted checkout_url — the API key never touches the browser.
+//    4. Records a PENDING order, then returns { transaction_id, checkout_url }.
+//  The frontend redirects the customer to checkout_url; theTeller returns
+//  them to redirect_url, where payswitch-verify confirms the payment.
 //
 //  Deploy:  supabase functions deploy payswitch-initiate
-//  (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided automatically.)
+//  Secrets: PAYSWITCH_MERCHANT_ID, PAYSWITCH_API_USER, PAYSWITCH_API_KEY,
+//           PAYSWITCH_ENV (live|test)
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getBundle } from '../_shared/catalogue.ts';
@@ -25,11 +29,9 @@ const json = (body: unknown, status = 200) =>
     headers: { ...CORS, 'Content-Type': 'application/json' },
   });
 
-// theTeller's INLINE popup expects the amount in plain cedis (major units),
-// e.g. "4.70" — NOT the 12-digit pesewas string used by their raw API.
-const toCedis = (ghs: number) => Number(ghs).toFixed(2);
+// theTeller's checkout /initiate uses a 12-digit zero-padded pesewas string.
+const toPesewas12 = (ghs: number) => String(Math.round(ghs * 100)).padStart(12, '0');
 
-// 12-digit numeric transaction id.
 const makeTransactionId = () => {
   const t = String(Date.now()).slice(-10);
   const r = String(Math.floor(Math.random() * 100)).padStart(2, '0');
@@ -43,9 +45,18 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const { bundleId, phone, email } = await req.json();
-    if (!bundleId || !phone) return json({ error: 'Missing bundleId or phone.' }, 400);
+    const { bundleId, phone, redirectUrl } = await req.json();
+    if (!bundleId || !phone || !redirectUrl) {
+      return json({ error: 'Missing bundleId, phone, or redirectUrl.' }, 400);
+    }
     if (!isGhPhone(phone)) return json({ error: 'Invalid Ghana phone number.' }, 400);
+
+    const merchantId = Deno.env.get('PAYSWITCH_MERCHANT_ID');
+    const apiUser = Deno.env.get('PAYSWITCH_API_USER');
+    const apiKey = Deno.env.get('PAYSWITCH_API_KEY');
+    if (!merchantId || !apiUser || !apiKey) {
+      return json({ error: 'Payment is not configured. Please try again later.' }, 500);
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -56,8 +67,49 @@ Deno.serve(async (req) => {
     if (!bundle) return json({ error: 'Unknown bundle.' }, 400);
 
     const transactionId = makeTransactionId();
+    // We removed email collection; theTeller still wants one, so derive a
+    // harmless placeholder from the phone.
+    const email = `${phone}@nomail.anasdata.app`;
 
-    const order = {
+    const base =
+      Deno.env.get('PAYSWITCH_ENV') === 'live'
+        ? 'https://checkout.theteller.net'
+        : 'https://checkout-test.theteller.net';
+
+    const initRes = await fetch(`${base}/initiate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Basic ' + btoa(`${apiUser}:${apiKey}`),
+        'Cache-Control': 'no-cache',
+      },
+      body: JSON.stringify({
+        merchant_id: merchantId,
+        transaction_id: transactionId,
+        desc: `${bundle.name} to ${phone}`,
+        amount: toPesewas12(bundle.price),
+        redirect_url: redirectUrl,
+        email,
+        API_Key: apiKey,
+        apiuser: apiUser,
+      }),
+    });
+
+    const result = await initRes.json().catch(() => ({}));
+    const checkoutUrl = result.checkout_url;
+    const okStatus =
+      String(result.status ?? '').toLowerCase() === 'success' ||
+      String(result.code ?? '') === '200';
+
+    if (!checkoutUrl || !okStatus) {
+      return json(
+        { error: `Could not start checkout (${result.reason ?? 'unknown error'}).` },
+        502
+      );
+    }
+
+    // Record the pending order only once theTeller accepted the transaction.
+    const { error: insertErr } = await supabase.from('orders').insert({
       reference: transactionId,
       bundle_id: bundle.id,
       bundle_name: bundle.name,
@@ -65,17 +117,15 @@ Deno.serve(async (req) => {
       data: bundle.data,
       price: bundle.price,
       phone,
-      email: email ?? null,
+      email: null,
       status: 'pending',
       channel: 'web',
-      payment_method: 'payswitch',
+      payment_method: 'theteller-checkout',
       payment_ref: transactionId,
-    };
-
-    const { error: insertErr } = await supabase.from('orders').insert(order);
+    });
     if (insertErr) return json({ error: `Could not start order: ${insertErr.message}` }, 500);
 
-    return json({ transaction_id: transactionId, amount: toCedis(bundle.price) });
+    return json({ transaction_id: transactionId, checkout_url: checkoutUrl });
   } catch (err) {
     return json({ error: (err as Error).message ?? 'Unexpected error.' }, 500);
   }

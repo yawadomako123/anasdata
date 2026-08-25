@@ -3,7 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { NETWORKS } from '../lib/data';
 import { fetchBundleById } from '../lib/bundles';
 import { isValidGhPhone, cedis } from '../lib/format';
-import { openPaySwitchInline, isPaySwitchConfigured } from '../lib/payswitch';
 import { initiatePaySwitchOrder } from '../lib/api';
 import { useToast } from '../components/Toast.jsx';
 
@@ -65,13 +64,13 @@ export default function Checkout() {
     setTouched({ phone: true });
     if (!phoneOk) return toast('⚠️ Enter a valid Ghana phone number', 'error');
 
-    // theTeller's popup requires an email field, but we no longer collect one,
-    // so we derive a harmless placeholder from the phone number.
-    const receiptEmail = `${phone}@nomail.anasdata.app`;
-
     try {
       setBusy('Starting secure payment…');
-      const init = await initiatePaySwitchOrder({ bundleId: bundle.id, phone });
+      const init = await initiatePaySwitchOrder({
+        bundleId: bundle.id,
+        phone,
+        redirectUrl: `${window.location.origin}/payment/return`,
+      });
       if (!init.ok) {
         toast(`⚠️ ${init.error}`, 'error', 6000);
         setBusy('');
@@ -82,16 +81,9 @@ export default function Checkout() {
       // theTeller redirect.
       sessionStorage.setItem('anasdata_txn', init.transactionId);
 
-      setBusy('Opening PaySwitch…');
-      await openPaySwitchInline({
-        transactionId: init.transactionId,
-        amount: init.amount,
-        email: receiptEmail,
-        description: `${bundle.name} to ${phone}`,
-        redirectUrl: `${window.location.origin}/payment/return`,
-        onClose: () => setBusy(''), // customer dismissed the popup
-      });
-      // theTeller now shows its popup and redirects the browser on completion.
+      // Standard checkout: hand off to theTeller's hosted payment page.
+      setBusy('Redirecting to PaySwitch…');
+      window.location.href = init.checkoutUrl;
     } catch (err) {
       setBusy('');
       toast(`ℹ️ ${err.message}`, 'info');
@@ -104,12 +96,6 @@ export default function Checkout() {
         <button className="checkout-back" onClick={() => navigate(-1)}>← Back</button>
         <div className="checkout-title">Complete Your Purchase</div>
         <div className="checkout-sub">Enter the number to top up, then pay securely.</div>
-
-        {!isPaySwitchConfigured && (
-          <div className="banner-warn">
-            Online payment is temporarily unavailable. Please try again shortly.
-          </div>
-        )}
 
         <div className={`order-summary-card ${bundle.network}`}>
           <div className="order-summary-label">Your Selected Bundle</div>
