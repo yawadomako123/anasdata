@@ -123,11 +123,17 @@ input, select { font-family: inherit; }
   transition: background 0.18s;
 }
 .nav-cta:hover { background: var(--accent-hover); }
-.nav-hamburger { display: none; flex-direction: column; gap: 5px; padding: 8px; }
-.nav-hamburger span { width: 22px; height: 2px; background: var(--text); border-radius: 2px; transition: 0.25s; }
+.nav-hamburger {
+  display: none; flex-direction: column; justify-content: center; align-items: center;
+  gap: 5px; padding: 10px; margin: -4px; width: 44px; height: 44px;
+  background: transparent; -webkit-tap-highlight-color: transparent; touch-action: manipulation; z-index: 110;
+}
+/* Bars never intercept the tap — the button is always the target. */
+.nav-hamburger span { width: 22px; height: 2px; background: var(--text); border-radius: 2px; transition: 0.25s; pointer-events: none; }
 .nav-hamburger.active span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
 .nav-hamburger.active span:nth-child(2) { opacity: 0; }
 .nav-hamburger.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+.nav-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 80; }
 
 /* ─── Hero ─── */
 .hero {
