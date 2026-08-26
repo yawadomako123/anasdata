@@ -45,7 +45,7 @@ const isGhPhone = (p: string) => /^0[235][0-9]{8}$/.test(p);
 const money = (n: number) => `GHS${n.toFixed(2)}`;
 
 interface SessionState {
-  step: 'network' | 'bundle' | 'recipient' | 'enterNumber' | 'confirm';
+  step: 'home' | 'network' | 'bundle' | 'recipient' | 'enterNumber' | 'confirm';
   network?: NetworkId;
   page?: number;
   bundleId?: string;
@@ -63,9 +63,18 @@ async function clearState(db: SupabaseClient, id: string) {
   await db.from('ussd_sessions').delete().eq('session_id', id);
 }
 
+function homeMenu(): string {
+  return (
+    'Welcome to Anasdata. The data is not instant. It takes between 5 minutes to 30 minutes to deliver.\n' +
+    '1. Buy data bundle\n2. Contact support'
+  );
+}
+function contactScreen(): string {
+  return 'Anasdata Support\nCall/WhatsApp: 0592079246\nEmail: qwekubhadest1414@gmail.com';
+}
 function networkMenu(): string {
   const lines = NETWORK_ORDER.map((id, i) => `${i + 1}. ${NETWORKS[id].name}`);
-  return `Anasdata - Buy data\n${lines.join('\n')}`;
+  return `Select network\n${lines.join('\n')}`;
 }
 async function bundleMenu(db: SupabaseClient, net: NetworkId, page: number): Promise<string> {
   const all = await bundlesByNetwork(db, net);
@@ -155,8 +164,8 @@ Deno.serve(async (req) => {
 
   try {
     if (mode === 'START') {
-      await saveState(db, sessionid, { step: 'network' });
-      return reply(body, networkMenu(), true);
+      await saveState(db, sessionid, { step: 'home' });
+      return reply(body, homeMenu(), true);
     }
     if (mode === 'END') {
       await clearState(db, sessionid);
@@ -165,6 +174,19 @@ Deno.serve(async (req) => {
 
     const state = await loadState(db, sessionid);
     if (!state) return reply(body, 'Session expired. Please dial again.', false);
+
+    // home: buy or contact support
+    if (state.step === 'home') {
+      if (userdata === '1') {
+        await saveState(db, sessionid, { step: 'network' });
+        return reply(body, networkMenu(), true);
+      }
+      if (userdata === '2') {
+        await clearState(db, sessionid);
+        return reply(body, contactScreen(), false);
+      }
+      return reply(body, `Invalid.\n${homeMenu()}`, true);
+    }
 
     // choose network
     if (state.step === 'network') {
