@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { NETWORKS } from '../lib/data';
 import { fetchBundleById } from '../lib/bundles';
 import { isValidGhPhone, cedis } from '../lib/format';
-import { initiatePaySwitchOrder } from '../lib/api';
+import { initiatePaySwitchOrder, verifyPaySwitchPayment } from '../lib/api';
 import { useToast } from '../components/Toast.jsx';
 
 export default function Checkout() {
@@ -14,7 +14,9 @@ export default function Checkout() {
   const [bundle, setBundle] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(''); // number to top up (recipient)
+  const [momo, setMomo] = useState(''); // Mobile Money number to charge (payer)
+  const [momoEdited, setMomoEdited] = useState(false);
   const [touched, setTouched] = useState({});
   const [busy, setBusy] = useState('');
 
@@ -59,31 +61,62 @@ export default function Checkout() {
 
   const net = NETWORKS[bundle.network];
   const phoneOk = isValidGhPhone(phone);
+  const momoOk = isValidGhPhone(momo);
+
+  function onPhoneChange(v) {
+    const clean = v.replace(/\D/g, '');
+    setPhone(clean);
+    if (!momoEdited) setMomo(clean); // mirror into MoMo field until edited
+  }
+
+  async function pollUntilDone(transactionId) {
+    for (let i = 0; i < 24; i++) {
+      await new Promise((r) => setTimeout(r, 4000));
+      const res = await verifyPaySwitchPayment(transactionId);
+      if (res.ok && res.status === 'paid') return { paid: true, order: res.order };
+      if (res.ok && res.status === 'failed') return { failed: true, error: res.error };
+    }
+    return { timeout: true };
+  }
 
   async function handlePay() {
-    setTouched({ phone: true });
-    if (!phoneOk) return toast('⚠️ Enter a valid Ghana phone number', 'error');
+    setTouched({ phone: true, momo: true });
+    if (!phoneOk) return toast('⚠️ Enter a valid number to top up', 'error');
+    if (!momoOk) return toast('⚠️ Enter a valid Mobile Money number', 'error');
 
     try {
-      setBusy('Starting secure payment…');
-      const init = await initiatePaySwitchOrder({
-        bundleId: bundle.id,
-        phone,
-        redirectUrl: `${window.location.origin}/payment/return`,
-      });
+      setBusy('Sending prompt to your phone…');
+      const init = await initiatePaySwitchOrder({ bundleId: bundle.id, phone, payerPhone: momo });
       if (!init.ok) {
         toast(`⚠️ ${init.error}`, 'error', 6000);
         setBusy('');
         return;
       }
 
-      // Remember the transaction so /payment/return can recover it after the
-      // theTeller redirect.
-      sessionStorage.setItem('anasdata_txn', init.transactionId);
+      setBusy('Approve the prompt on your phone…');
+      const result = await pollUntilDone(init.transactionId);
 
-      // Standard checkout: hand off to theTeller's hosted payment page.
-      setBusy('Redirecting to PaySwitch…');
-      window.location.href = init.checkoutUrl;
+      if (result.paid) {
+        const o = result.order;
+        navigate('/success', {
+          replace: true,
+          state: {
+            reference: o.reference,
+            bundle: { data: o.data, name: o.bundle_name, network: o.network },
+            phone: o.phone,
+            amount: Number(o.price),
+            network: NETWORKS[o.network]?.fullName || o.network,
+          },
+        });
+        return;
+      }
+
+      setBusy('');
+      if (result.failed) {
+        toast(`⚠️ ${result.error || 'Payment was not completed.'}`, 'error', 7000);
+      } else {
+        toast('ℹ️ Still awaiting approval. If you approved, check Track Order shortly.', 'info', 8000);
+      }
     } catch (err) {
       setBusy('');
       toast(`ℹ️ ${err.message}`, 'info');
@@ -95,7 +128,7 @@ export default function Checkout() {
       <div className="checkout-wrap">
         <button className="checkout-back" onClick={() => navigate(-1)}>← Back</button>
         <div className="checkout-title">Complete Your Purchase</div>
-        <div className="checkout-sub">Enter the number to top up, then pay securely.</div>
+        <div className="checkout-sub">Enter your details, then approve the Mobile Money prompt.</div>
 
         <div className={`order-summary-card ${bundle.network}`}>
           <div className="order-summary-label">Your Selected Bundle</div>
@@ -118,7 +151,7 @@ export default function Checkout() {
 
         <div className="checkout-form">
           <div className="form-group">
-            <label className="form-label" htmlFor="phone">Phone Number to Top Up <span>*</span></label>
+            <label className="form-label" htmlFor="phone">Number to Top Up <span>*</span></label>
             <input
               id="phone"
               type="tel"
@@ -126,7 +159,7 @@ export default function Checkout() {
               placeholder="e.g. 0244123456"
               maxLength={10}
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => onPhoneChange(e.target.value)}
               onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
             />
             <div className="form-hint">📱 The bundle will be loaded to this number</div>
@@ -134,13 +167,31 @@ export default function Checkout() {
               <div className="form-error show">Enter a valid 10-digit Ghana number (e.g. 0244123456)</div>
             )}
           </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="momo">Mobile Money Number to Pay <span>*</span></label>
+            <input
+              id="momo"
+              type="tel"
+              className="form-input"
+              placeholder="e.g. 0244123456"
+              maxLength={10}
+              value={momo}
+              onChange={(e) => { setMomoEdited(true); setMomo(e.target.value.replace(/\D/g, '')); }}
+              onBlur={() => setTouched((t) => ({ ...t, momo: true }))}
+            />
+            <div className="form-hint">💳 You'll approve the payment prompt on this number</div>
+            {touched.momo && !momoOk && (
+              <div className="form-error show">Enter a valid 10-digit Mobile Money number</div>
+            )}
+          </div>
         </div>
 
         <div className="paystack-info">
           <span style={{ fontSize: 20 }}>🔒</span>
           <span>
-            Payment secured by <strong>PaySwitch</strong>. Mobile Money, Visa &amp; Mastercard
-            accepted.
+            Secure <strong>Mobile Money</strong> payment. You'll get a prompt on your phone to
+            approve with your PIN.
           </span>
         </div>
 
@@ -152,10 +203,17 @@ export default function Checkout() {
           ) : (
             <>
               <span>🔐</span>
-              <span>Pay {cedis(bundle.price)} with PaySwitch</span>
+              <span>Pay {cedis(bundle.price)} with Mobile Money</span>
             </>
           )}
         </button>
+
+        {busy.startsWith('Approve') && (
+          <div className="form-hint" style={{ textAlign: 'center', marginTop: 14 }}>
+            Waiting for approval — don't close this page. If no prompt appears, check your MoMo
+            approvals (dial *170#).
+          </div>
+        )}
       </div>
     </div>
   );

@@ -21,9 +21,15 @@ import {
   type NetworkId,
 } from '../_shared/catalogue.ts';
 import { notifyTelegram } from '../_shared/notify.ts';
-import { initiateMomoCharge, makeTxnId } from '../_shared/theteller.ts';
+import { initiateCharge } from '../_shared/telapay.ts';
 
 const PAGE_SIZE = 4;
+
+const makeTxnId = () => {
+  const t = String(Date.now()).slice(-10);
+  const r = String(Math.floor(Math.random() * 100)).padStart(2, '0');
+  return t + r;
+};
 
 const admin = (): SupabaseClient =>
   createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -240,7 +246,7 @@ Deno.serve(async (req) => {
           email: null,
           status: 'pending',
           channel: 'ussd',
-          payment_method: 'theteller-momo',
+          payment_method: 'telapay-momo',
           payment_ref: reference,
           payer_phone: toLocal(phone),
         })
@@ -255,12 +261,14 @@ Deno.serve(async (req) => {
       // PIN prompt out-of-band, so ending the USSD session here is fine.
       const background = (async () => {
         try {
-          await initiateMomoCharge({
+          await initiateCharge({
             transactionId: reference,
             amountGhs: bundle.price,
             subscriberNumber: phone,
             network,
             desc: `${bundle.name} to ${recipient}`,
+            reference,
+            callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/telapay-callback`,
           });
         } catch { /* order stays pending; admin can reconcile */ }
         try {

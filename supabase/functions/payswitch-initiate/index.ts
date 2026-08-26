@@ -1,43 +1,30 @@
 // ════════════════════════════════════════════════════════════
-//  payswitch-initiate  —  Supabase Edge Function (Deno)
+//  payswitch-initiate  —  WEB MoMo charge via TelaPay TPay V2.
 //
-//  theTeller STANDARD CHECKOUT (redirect flow). It:
-//    1. Looks up the bundle price from the DB (never trusts the client).
-//    2. Generates a 12-digit transaction id.
-//    3. Calls theTeller /initiate (server-side, Basic auth) to get a
-//       hosted checkout_url — the API key never touches the browser.
-//    4. Records a PENDING order, then returns { transaction_id, checkout_url }.
-//  The frontend redirects the customer to checkout_url; theTeller returns
-//  them to redirect_url, where payswitch-verify confirms the payment.
+//  Records a PENDING order and initiates a Mobile Money charge on the
+//  customer's number (they approve on their phone). The final result
+//  arrives at telapay-callback; the frontend also polls payswitch-verify.
 //
 //  Deploy:  supabase functions deploy payswitch-initiate
-//  Secrets: PAYSWITCH_MERCHANT_ID, PAYSWITCH_API_USER, PAYSWITCH_API_KEY,
-//           PAYSWITCH_ENV (live|test)
+//  Secrets: TELAPAY_CLIENT_ID, TELAPAY_CLIENT_SECRET, TELAPAY_TERMINAL_ID
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getBundle } from '../_shared/catalogue.ts';
+import { initiateCharge } from '../_shared/telapay.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-
-// theTeller's checkout /initiate uses a 12-digit zero-padded pesewas string.
-const toPesewas12 = (ghs: number) => String(Math.round(ghs * 100)).padStart(12, '0');
+  new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 const makeTransactionId = () => {
   const t = String(Date.now()).slice(-10);
   const r = String(Math.floor(Math.random() * 100)).padStart(2, '0');
-  return t + r;
+  return t + r; // 12 digits
 };
-
 const isGhPhone = (p: string) => /^0[235][0-9]{8}$/.test(String(p || '').trim());
 
 Deno.serve(async (req) => {
@@ -45,18 +32,12 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const { bundleId, phone, redirectUrl } = await req.json();
-    if (!bundleId || !phone || !redirectUrl) {
-      return json({ error: 'Missing bundleId, phone, or redirectUrl.' }, 400);
-    }
-    if (!isGhPhone(phone)) return json({ error: 'Invalid Ghana phone number.' }, 400);
-
-    const merchantId = Deno.env.get('PAYSWITCH_MERCHANT_ID');
-    const apiUser = Deno.env.get('PAYSWITCH_API_USER');
-    const apiKey = Deno.env.get('PAYSWITCH_API_KEY');
-    if (!merchantId || !apiUser || !apiKey) {
-      return json({ error: 'Payment is not configured. Please try again later.' }, 500);
-    }
+    const { bundleId, phone, payerPhone } = await req.json();
+    const recipient = String(phone || '').trim();
+    const payer = String(payerPhone || phone || '').trim();
+    if (!bundleId || !recipient) return json({ error: 'Missing bundle or number.' }, 400);
+    if (!isGhPhone(recipient)) return json({ error: 'Invalid number to top up.' }, 400);
+    if (!isGhPhone(payer)) return json({ error: 'Invalid Mobile Money number.' }, 400);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -67,48 +48,7 @@ Deno.serve(async (req) => {
     if (!bundle) return json({ error: 'Unknown bundle.' }, 400);
 
     const transactionId = makeTransactionId();
-    // We removed email collection; theTeller still wants one, so derive a
-    // harmless placeholder from the phone.
-    const email = `${phone}@nomail.anasdata.app`;
 
-    const base =
-      Deno.env.get('PAYSWITCH_ENV') === 'live'
-        ? 'https://checkout.theteller.net'
-        : 'https://checkout-test.theteller.net';
-
-    const initRes = await fetch(`${base}/initiate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Basic ' + btoa(`${apiUser}:${apiKey}`),
-        'Cache-Control': 'no-cache',
-      },
-      body: JSON.stringify({
-        merchant_id: merchantId,
-        transaction_id: transactionId,
-        desc: `${bundle.name} to ${phone}`,
-        amount: toPesewas12(bundle.price),
-        redirect_url: redirectUrl,
-        email,
-        API_Key: apiKey,
-        apiuser: apiUser,
-      }),
-    });
-
-    const result = await initRes.json().catch(() => ({}));
-    const checkoutUrl = result.checkout_url;
-    const okStatus =
-      String(result.status ?? '').toLowerCase() === 'success' ||
-      String(result.code ?? '') === '200';
-
-    if (!checkoutUrl || !okStatus) {
-      return json(
-        { error: `Could not start checkout (${result.reason ?? 'unknown error'}).` },
-        502
-      );
-    }
-
-    // Record the pending order only once theTeller accepted the transaction.
     const { error: insertErr } = await supabase.from('orders').insert({
       reference: transactionId,
       bundle_id: bundle.id,
@@ -116,16 +56,32 @@ Deno.serve(async (req) => {
       network: bundle.network,
       data: bundle.data,
       price: bundle.price,
-      phone,
+      phone: recipient,
       email: null,
       status: 'pending',
       channel: 'web',
-      payment_method: 'theteller-checkout',
+      payment_method: 'telapay-momo',
       payment_ref: transactionId,
+      payer_phone: payer,
     });
     if (insertErr) return json({ error: `Could not start order: ${insertErr.message}` }, 500);
 
-    return json({ transaction_id: transactionId, checkout_url: checkoutUrl });
+    const charge = await initiateCharge({
+      transactionId,
+      amountGhs: bundle.price,
+      subscriberNumber: payer,
+      network: bundle.network,
+      desc: `${bundle.name} to ${recipient}`,
+      reference: transactionId,
+      callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/telapay-callback`,
+    });
+
+    if (!charge.ok) {
+      await supabase.from('orders').update({ status: 'failed' }).eq('reference', transactionId);
+      return json({ error: `Could not start payment (${charge.reason ?? charge.code}).` }, 502);
+    }
+
+    return json({ transaction_id: transactionId, status: 'pending' });
   } catch (err) {
     return json({ error: (err as Error).message ?? 'Unexpected error.' }, 500);
   }

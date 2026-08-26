@@ -16,29 +16,29 @@ async function readFnError(error) {
 }
 
 /**
- * Step 1 of PaySwitch standard checkout: the server records a PENDING order,
- * calls theTeller /initiate, and returns a hosted checkout_url to redirect to.
+ * Start a MoMo charge (TelaPay). The server records a PENDING order and pushes
+ * an approval prompt to the payer's phone. Returns the transaction id; the
+ * frontend then polls verifyPaySwitchPayment until it's paid.
  *
- * @returns {Promise<{ok: boolean, transactionId?: string, checkoutUrl?: string, error?: string}>}
+ * @returns {Promise<{ok: boolean, transactionId?: string, error?: string}>}
  */
-export async function initiatePaySwitchOrder({ bundleId, phone, redirectUrl }) {
+export async function initiatePaySwitchOrder({ bundleId, phone, payerPhone }) {
   if (!isSupabaseReady) return { ok: false, error: NOT_READY };
 
   const { data, error } = await supabase.functions.invoke('payswitch-initiate', {
-    body: { bundleId, phone, redirectUrl },
+    body: { bundleId, phone, payerPhone },
   });
 
   if (error) return { ok: false, error: await readFnError(error) };
   if (data?.error) return { ok: false, error: data.error };
-  return { ok: true, transactionId: data.transaction_id, checkoutUrl: data.checkout_url };
+  return { ok: true, transactionId: data.transaction_id };
 }
 
 /**
- * Step 2 of PaySwitch checkout: after theTeller redirects back, ask the
- * backend to VERIFY the payment with theTeller's status endpoint and flip the
- * order to PAID. The customer cannot fake this — it's checked server-side.
+ * Check a charge's status server-side. Returns status 'pending' | 'paid' |
+ * 'failed'. On 'paid' the order is included. The customer can't fake this.
  *
- * @returns {Promise<{ok: boolean, order?: object, error?: string}>}
+ * @returns {Promise<{ok: boolean, status?: string, order?: object, error?: string}>}
  */
 export async function verifyPaySwitchPayment(transactionId) {
   if (!isSupabaseReady) return { ok: false, error: NOT_READY };
@@ -48,8 +48,7 @@ export async function verifyPaySwitchPayment(transactionId) {
   });
 
   if (error) return { ok: false, error: await readFnError(error) };
-  if (data?.error) return { ok: false, error: data.error };
-  return { ok: true, order: data.order };
+  return { ok: true, status: data.status, order: data.order, error: data.error };
 }
 
 /**

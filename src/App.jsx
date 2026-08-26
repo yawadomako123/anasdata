@@ -6,7 +6,6 @@ import Home from './pages/Home.jsx';
 import Bundles from './pages/Bundles.jsx';
 import Checkout from './pages/Checkout.jsx';
 import Success from './pages/Success.jsx';
-import PaymentReturn from './pages/PaymentReturn.jsx';
 import TrackOrder from './pages/TrackOrder.jsx';
 import AdminLogin from './pages/admin/AdminLogin.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
@@ -32,7 +31,6 @@ export default function App() {
           <Route path="/bundles" element={<Bundles />} />
           <Route path="/checkout/:bundleId" element={<Checkout />} />
           <Route path="/success" element={<Success />} />
-          <Route path="/payment/return" element={<PaymentReturn />} />
           <Route path="/track" element={<TrackOrder />} />
 
           <Route path="/admin/login" element={<AdminLogin />} />
