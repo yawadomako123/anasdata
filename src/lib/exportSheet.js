@@ -1,17 +1,8 @@
-import { prettyDate } from './format';
-
+// The order sheet handed to whoever loads the bundles: just the number to
+// top up and the data they bought (package name includes the network).
 const COLUMNS = [
-  ['reference', 'Reference'],
-  ['created_at', 'Ordered At'],
-  ['channel', 'Via'],
-  ['network', 'Network'],
-  ['bundle_name', 'Package'],
-  ['data', 'Data'],
   ['phone', 'Phone Number'],
-  ['price', 'Amount (GHS)'],
-  ['status', 'Status'],
-  ['payer_phone', 'Paid By'],
-  ['email', 'Email'],
+  ['bundle_name', 'Data'],
 ];
 
 const escapeCsv = (val) => {
@@ -19,19 +10,10 @@ const escapeCsv = (val) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-/**
- * Turn a list of orders into a CSV order sheet and trigger a download.
- * This is the sheet you hand to whoever loads the bundles: phone + package.
- */
+/** Turn a list of orders into a CSV order sheet and trigger a download. */
 export function downloadOrderSheet(orders, filename) {
   const header = COLUMNS.map(([, label]) => label).join(',');
-  const rows = orders.map((o) =>
-    COLUMNS.map(([key]) => {
-      if (key === 'created_at') return escapeCsv(prettyDate(o.created_at));
-      if (key === 'price') return escapeCsv(Number(o.price).toFixed(2));
-      return escapeCsv(o[key]);
-    }).join(',')
-  );
+  const rows = orders.map((o) => COLUMNS.map(([key]) => escapeCsv(o[key])).join(','));
 
   // BOM so Excel reads UTF-8 correctly
   const csv = '﻿' + [header, ...rows].join('\r\n');
