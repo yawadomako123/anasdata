@@ -122,12 +122,17 @@ export default function AdminDashboard() {
           <button
             className="btn-primary"
             onClick={() => {
-              if (orders.length === 0) return toast('No orders to export', 'info');
-              downloadOrderSheet(orders, `order-sheet-${filter}-${new Date().toISOString().slice(0, 10)}.csv`);
-              toast('⬇️ Order sheet downloaded', 'success');
+              // Export only orders that have actually been paid for — never
+              // pending (unpaid) or failed ones.
+              const paid = orders.filter(
+                (o) => o.status === 'paid' || o.status === 'processing' || o.status === 'done'
+              );
+              if (paid.length === 0) return toast('No paid orders to export', 'info');
+              downloadOrderSheet(paid, `paid-orders-${new Date().toISOString().slice(0, 10)}.csv`);
+              toast(`⬇️ Exported ${paid.length} paid order${paid.length === 1 ? '' : 's'}`, 'success');
             }}
           >
-            ⬇️ Download Order Sheet
+            ⬇️ Download Paid Orders
           </button>
         </div>
 
