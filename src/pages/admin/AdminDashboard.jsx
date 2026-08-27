@@ -2,21 +2,22 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { fetchOrders, setOrderStatus, deleteOrder } from '../../lib/api';
-import { downloadOrderSheet } from '../../lib/exportSheet';
+import { downloadOrderSheet, downloadPhoneList } from '../../lib/exportSheet';
 import { cedis, prettyDate } from '../../lib/format';
 import { NETWORKS } from '../../lib/data';
 import { useToast } from '../../components/Toast.jsx';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
-  { key: 'paid', label: 'New / Paid' },
-  { key: 'processing', label: 'Processing' },
+  { key: 'processing', label: 'To Load' },
   { key: 'done', label: 'Loaded' },
   { key: 'pending', label: 'Awaiting payment' },
+  { key: 'failed', label: 'Failed' },
 ];
 
+// A confirmed (paid) order lands as 'processing' — the load queue. The only
+// remaining action is marking it loaded.
 const NEXT_ACTION = {
-  paid: { to: 'processing', label: 'Start' },
   processing: { to: 'done', label: 'Mark Loaded' },
 };
 
@@ -24,7 +25,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const toast = useToast();
   const [orders, setOrders] = useState([]);
-  const [filter, setFilter] = useState('paid');
+  const [filter, setFilter] = useState('processing');
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -82,7 +83,22 @@ export default function AdminDashboard() {
     navigate('/admin/login', { replace: true });
   }
 
-  const pendingCount = orders.filter((o) => o.status === 'paid').length;
+  // Download every customer's number (people who have actually paid), de-duplicated.
+  async function downloadCustomerNumbers() {
+    const res = await fetchOrders({ status: 'all' });
+    if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
+    const paid = new Set(['paid', 'processing', 'done']);
+    const numbers = new Set();
+    res.orders.forEach((o) => {
+      if (paid.has(o.status)) numbers.add(o.payer_phone || o.phone);
+    });
+    const list = [...numbers].filter(Boolean);
+    if (list.length === 0) return toast('No customer numbers yet', 'info');
+    downloadPhoneList(list, `customer-numbers-${new Date().toISOString().slice(0, 10)}.csv`);
+    toast(`⬇️ ${list.length} customer number${list.length === 1 ? '' : 's'}`, 'success');
+  }
+
+  const pendingCount = orders.filter((o) => o.status === 'processing').length;
   const revenue = orders.reduce((s, o) => s + Number(o.price), 0);
 
   return (
@@ -119,21 +135,26 @@ export default function AdminDashboard() {
               </button>
             ))}
           </div>
-          <button
-            className="btn-primary"
-            onClick={() => {
-              // Export only orders that have actually been paid for — never
-              // pending (unpaid) or failed ones.
-              const paid = orders.filter(
-                (o) => o.status === 'paid' || o.status === 'processing' || o.status === 'done'
-              );
-              if (paid.length === 0) return toast('No paid orders to export', 'info');
-              downloadOrderSheet(paid, `paid-orders-${new Date().toISOString().slice(0, 10)}.csv`);
-              toast(`⬇️ Exported ${paid.length} paid order${paid.length === 1 ? '' : 's'}`, 'success');
-            }}
-          >
-            ⬇️ Download Paid Orders
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn-secondary" onClick={downloadCustomerNumbers}>
+              ⬇️ Customer Numbers
+            </button>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                // Export only orders that have actually been paid for — never
+                // pending (unpaid) or failed ones.
+                const paid = orders.filter(
+                  (o) => o.status === 'paid' || o.status === 'processing' || o.status === 'done'
+                );
+                if (paid.length === 0) return toast('No paid orders to export', 'info');
+                downloadOrderSheet(paid, `paid-orders-${new Date().toISOString().slice(0, 10)}.csv`);
+                toast(`⬇️ Exported ${paid.length} paid order${paid.length === 1 ? '' : 's'}`, 'success');
+              }}
+            >
+              ⬇️ Download Paid Orders
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -227,7 +248,7 @@ const StatCard = ({ value, label, accent }) => (
 const STATUS = {
   pending: { text: 'Awaiting payment', cls: 'processing' },
   paid: { text: 'New', cls: 'pending' },
-  processing: { text: 'Processing', cls: 'processing' },
+  processing: { text: 'To load', cls: 'pending' },
   done: { text: 'Loaded', cls: 'success' },
   failed: { text: 'Failed', cls: 'expired' },
 };

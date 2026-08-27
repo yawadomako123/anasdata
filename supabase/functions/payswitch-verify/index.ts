@@ -35,7 +35,10 @@ Deno.serve(async (req) => {
       .eq('payment_ref', transactionId)
       .maybeSingle();
     if (!order) return json({ error: 'Order not found.' }, 404);
-    if (order.status === 'paid') return json({ status: 'paid', order }); // idempotent
+    // Already confirmed (a paid order goes straight to 'processing' — the load queue).
+    if (order.status === 'processing' || order.status === 'done') {
+      return json({ status: 'paid', order });
+    }
 
     const result = await checkStatus(transactionId);
 
@@ -49,9 +52,10 @@ Deno.serve(async (req) => {
       return json({ status: 'failed', error: 'Amount mismatch — rejected.' }, 200);
     }
 
+    // Confirmed payment → straight into the load queue as 'processing'.
     const { data: updated } = await supabase
       .from('orders')
-      .update({ status: 'paid' })
+      .update({ status: 'processing' })
       .eq('id', order.id)
       .select()
       .single();

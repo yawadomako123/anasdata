@@ -10,20 +10,32 @@ const escapeCsv = (val) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-/** Turn a list of orders into a CSV order sheet and trigger a download. */
-export function downloadOrderSheet(orders, filename) {
-  const header = COLUMNS.map(([, label]) => label).join(',');
-  const rows = orders.map((o) => COLUMNS.map(([key]) => escapeCsv(o[key])).join(','));
-
-  // BOM so Excel reads UTF-8 correctly
-  const csv = '﻿' + [header, ...rows].join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+function triggerDownload(csv, filename) {
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename || `order-sheet-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/** Turn a list of orders into a CSV order sheet and trigger a download. */
+export function downloadOrderSheet(orders, filename) {
+  const header = COLUMNS.map(([, label]) => label).join(',');
+  const rows = orders.map((o) => COLUMNS.map(([key]) => escapeCsv(o[key])).join(','));
+  triggerDownload(
+    [header, ...rows].join('\r\n'),
+    filename || `order-sheet-${new Date().toISOString().slice(0, 10)}.csv`
+  );
+}
+
+/** Download a one-column CSV of phone numbers. */
+export function downloadPhoneList(phones, filename) {
+  triggerDownload(
+    ['Phone Number', ...phones.map(escapeCsv)].join('\r\n'),
+    filename || `customer-numbers-${new Date().toISOString().slice(0, 10)}.csv`
+  );
 }

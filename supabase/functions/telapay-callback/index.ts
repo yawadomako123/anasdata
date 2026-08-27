@@ -45,10 +45,11 @@ Deno.serve(async (req) => {
       .eq('payment_ref', txn)
       .maybeSingle();
 
-    if (order && order.status !== 'paid') {
+    // Confirmed payment → straight into the load queue as 'processing'.
+    if (order && order.status !== 'processing' && order.status !== 'done') {
       const { data: updated } = await supabase
         .from('orders')
-        .update({ status: 'paid' })
+        .update({ status: 'processing' })
         .eq('id', order.id)
         .select()
         .single();
