@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
 import { NETWORKS } from '../../lib/data';
 import { fetchAllBundles, createBundle, updateBundle, deleteBundle, setBundleActive } from '../../lib/bundles';
 import { cedis } from '../../lib/format';
 import { useToast } from '../../components/Toast.jsx';
+import AdminTopbar from './AdminTopbar.jsx';
 
 const EMPTY = { network: 'mtn', name: '', data: '', dataValue: '', price: '', badge: '' };
 
 export default function AdminBundles() {
-  const navigate = useNavigate();
   const toast = useToast();
   const [bundles, setBundles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,24 +76,9 @@ export default function AdminBundles() {
     load();
   }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    navigate('/admin/login', { replace: true });
-  }
-
   return (
     <div className="admin-shell">
-      <header className="admin-topbar">
-        <div className="nav-logo">
-          <span className="nav-logo-icon">A</span>
-          <span className="nav-logo-text">Anasdata Admin</span>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Link className="nav-link" to="/admin">Orders</Link>
-          <Link className="nav-link active" to="/admin/bundles">Bundles</Link>
-          <button className="btn-secondary" onClick={signOut}>Sign out</button>
-        </div>
-      </header>
+      <AdminTopbar onRefresh={load} />
 
       <div className="admin-body">
         {/* Add / edit bundle */}

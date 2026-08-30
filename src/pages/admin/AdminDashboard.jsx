@@ -1,28 +1,28 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { fetchOrders, setOrderStatus, deleteOrder } from '../../lib/api';
-import { downloadOrderSheet, downloadPhoneList } from '../../lib/exportSheet';
 import { cedis, prettyDate } from '../../lib/format';
 import { NETWORKS } from '../../lib/data';
 import { useToast } from '../../components/Toast.jsx';
+import AdminTopbar from './AdminTopbar.jsx';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'processing', label: 'To Load' },
+  { key: 'exported', label: 'Supplying' },
   { key: 'done', label: 'Loaded' },
   { key: 'pending', label: 'Awaiting payment' },
   { key: 'failed', label: 'Failed' },
 ];
 
-// A confirmed (paid) order lands as 'processing' — the load queue. The only
-// remaining action is marking it loaded.
+// A confirmed order lands as 'processing' (To Load) → 'exported' (Supplying,
+// after the load sheet is exported) → 'done' (Loaded).
 const NEXT_ACTION = {
-  processing: { to: 'done', label: 'Mark Loaded' },
+  processing: { to: 'exported', label: 'Mark Supplying' },
+  exported: { to: 'done', label: 'Mark Loaded' },
 };
 
 export default function AdminDashboard() {
-  const navigate = useNavigate();
   const toast = useToast();
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState('processing');
@@ -78,43 +78,12 @@ export default function AdminDashboard() {
     load();
   }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    navigate('/admin/login', { replace: true });
-  }
-
-  // Download every customer's number (people who have actually paid), de-duplicated.
-  async function downloadCustomerNumbers() {
-    const res = await fetchOrders({ status: 'all' });
-    if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
-    const paid = new Set(['paid', 'processing', 'done']);
-    const numbers = new Set();
-    res.orders.forEach((o) => {
-      if (paid.has(o.status)) numbers.add(o.payer_phone || o.phone);
-    });
-    const list = [...numbers].filter(Boolean);
-    if (list.length === 0) return toast('No customer numbers yet', 'info');
-    downloadPhoneList(list, `customer-numbers-${new Date().toISOString().slice(0, 10)}.csv`);
-    toast(`⬇️ ${list.length} customer number${list.length === 1 ? '' : 's'}`, 'success');
-  }
-
   const pendingCount = orders.filter((o) => o.status === 'processing').length;
   const revenue = orders.reduce((s, o) => s + Number(o.price), 0);
 
   return (
     <div className="admin-shell">
-      <header className="admin-topbar">
-        <div className="nav-logo">
-          <span className="nav-logo-icon">A</span>
-          <span className="nav-logo-text">Anasdata Admin</span>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Link className="nav-link active" to="/admin">Orders</Link>
-          <Link className="nav-link" to="/admin/bundles">Bundles</Link>
-          <button className="btn-secondary" onClick={load}>↻ Refresh</button>
-          <button className="btn-secondary" onClick={signOut}>Sign out</button>
-        </div>
-      </header>
+      <AdminTopbar onRefresh={load} />
 
       <div className="admin-body">
         <div className="admin-stats">
@@ -134,26 +103,6 @@ export default function AdminDashboard() {
                 {f.label}
               </button>
             ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="btn-secondary" onClick={downloadCustomerNumbers}>
-              ⬇️ Customer Numbers
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => {
-                // Export only orders that have actually been paid for — never
-                // pending (unpaid) or failed ones.
-                const paid = orders.filter(
-                  (o) => o.status === 'paid' || o.status === 'processing' || o.status === 'done'
-                );
-                if (paid.length === 0) return toast('No paid orders to export', 'info');
-                downloadOrderSheet(paid, `paid-orders-${new Date().toISOString().slice(0, 10)}.csv`);
-                toast(`⬇️ Exported ${paid.length} paid order${paid.length === 1 ? '' : 's'}`, 'success');
-              }}
-            >
-              ⬇️ Download Paid Orders
-            </button>
           </div>
         </div>
 
@@ -216,8 +165,8 @@ export default function AdminDashboard() {
                             title="Change or revert status"
                           >
                             <option value="pending">Awaiting payment</option>
-                            <option value="paid">New / Paid</option>
-                            <option value="processing">Processing</option>
+                            <option value="processing">To Load</option>
+                            <option value="exported">Supplying</option>
                             <option value="done">Loaded</option>
                             <option value="failed">Failed</option>
                           </select>
@@ -249,6 +198,7 @@ const STATUS = {
   pending: { text: 'Awaiting payment', cls: 'processing' },
   paid: { text: 'New', cls: 'pending' },
   processing: { text: 'To load', cls: 'pending' },
+  exported: { text: 'Supplying', cls: 'processing' },
   done: { text: 'Loaded', cls: 'success' },
   failed: { text: 'Failed', cls: 'expired' },
 };

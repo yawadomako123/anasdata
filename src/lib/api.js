@@ -87,3 +87,11 @@ export async function deleteOrder(id) {
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+/** Update the status of many orders at once (e.g. a whole exported batch). */
+export async function markOrdersStatus(ids, status) {
+  if (!ids || ids.length === 0) return { ok: true };
+  const { error } = await supabase.from('orders').update({ status }).in('id', ids);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
