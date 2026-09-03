@@ -18,16 +18,22 @@ export default function AdminDashboard() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    // "To load" = paid & not yet done. Payment status is only ever set to
-    // 'processing' after TelaPay confirms (code 000), so failed/pending are
-    // never included. 'paid' is covered too for safety (legacy).
-    const [a, b] = await Promise.all([
+    // "To load" = genuinely PAID and not yet done. Payment status only ever
+    // becomes processing/paid/exported after TelaPay confirms (code 000), so
+    // failed and pending are never included. We include all three paid-but-not-
+    // done states so no paid order is ever stranded.
+    const [a, b, c] = await Promise.all([
       fetchAllOrders({ status: 'processing' }),
       fetchAllOrders({ status: 'paid' }),
+      fetchAllOrders({ status: 'exported' }),
     ]);
     setLoading(false);
     if (!a.ok) return toast(`⚠️ ${a.error}`, 'error');
-    setOrders([...(a.orders || []), ...(b.ok ? b.orders : [])]);
+    setOrders([
+      ...(a.orders || []),
+      ...(b.ok ? b.orders : []),
+      ...(c.ok ? c.orders : []),
+    ]);
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
