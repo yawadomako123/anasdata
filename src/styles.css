@@ -530,12 +530,12 @@ a.footer-link:hover { color: var(--text); }
   color: var(--text-secondary); background: transparent; border: none; cursor: pointer;
 }
 .admin-drawer-link.active { background: var(--surface-2); color: var(--text); }
-.admin-drawer-link.danger { color: var(--error); margin-top: auto; }
+.admin-drawer-link.danger { color: var(--error); margin-top: 10px; border-top: 1px solid var(--border); border-radius: 0; padding-top: 16px; }
 
 /* ─── Network order cards (download screen) ─── */
 .net-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .net-card {
-  position: relative; border-radius: var(--radius); padding: 28px 20px 22px; cursor: pointer;
+  border-radius: var(--radius); padding: 22px 20px; cursor: pointer;
   border: 1px solid rgba(0, 0, 0, 0.15); text-align: left; color: #1a1a1a;
   transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
@@ -543,13 +543,14 @@ a.footer-link:hover { color: var(--text); }
 .net-card:disabled { cursor: default; opacity: 0.7; }
 .net-card.mtn { background: #ffcc00; }
 .net-card.telecel { background: #e2001a; color: #fff; }
+.net-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .net-card-count {
-  position: absolute; top: 14px; right: 14px; min-width: 42px; height: 42px; padding: 0 12px;
+  flex-shrink: 0; min-width: 40px; height: 40px; padding: 0 11px;
   display: inline-grid; place-items: center; border-radius: 999px; font-weight: 800; font-size: 20px;
   background: #1a1a1a; color: #fff;
 }
 .net-card.telecel .net-card-count { background: #fff; color: #e2001a; }
-.net-card-name { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.net-card-name { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
 .net-card-sub { font-size: 13px; margin-top: 4px; opacity: 0.75; }
 .net-card-cta { margin-top: 22px; font-weight: 700; font-size: 15px; }
 
@@ -578,6 +579,7 @@ a.footer-link:hover { color: var(--text); }
   .admin-nav-desktop { display: none; }
   .admin-burger { display: flex; }
   .admin-topbar { padding: 12px 16px; gap: 10px; }
+  .net-cards { grid-template-columns: 1fr; }
   .admin-topbar .nav-logo-text { font-size: 17px; }
   .admin-topbar > div:last-child { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
   .admin-topbar .nav-link,

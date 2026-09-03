@@ -91,8 +91,10 @@ export default function AdminDashboard() {
                     onClick={() => downloadNetwork(net)}
                     disabled={busy === net.id || n === 0}
                   >
-                    <span className="net-card-count">{n}</span>
-                    <div className="net-card-name">{net.name}</div>
+                    <div className="net-card-head">
+                      <span className="net-card-name">{net.name}</span>
+                      <span className="net-card-count">{n}</span>
+                    </div>
                     <div className="net-card-sub">paid orders to load</div>
                     <div className="net-card-cta">
                       {busy === net.id
