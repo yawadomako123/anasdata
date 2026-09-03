@@ -10,7 +10,7 @@ import TrackOrder from './pages/TrackOrder.jsx';
 import AdminLogin from './pages/admin/AdminLogin.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 import AdminBundles from './pages/admin/AdminBundles.jsx';
-import AdminLoad from './pages/admin/AdminLoad.jsx';
+import AdminTransactions from './pages/admin/AdminTransactions.jsx';
 import AdminCustomers from './pages/admin/AdminCustomers.jsx';
 import RequireAuth from './pages/admin/RequireAuth.jsx';
 
@@ -45,10 +45,10 @@ export default function App() {
             }
           />
           <Route
-            path="/admin/load"
+            path="/admin/transactions"
             element={
               <RequireAuth>
-                <AdminLoad />
+                <AdminTransactions />
               </RequireAuth>
             }
           />

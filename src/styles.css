@@ -515,6 +515,44 @@ a.footer-link:hover { color: var(--text); }
 }
 .btn-del:hover { color: #fff; background: var(--error); border-color: var(--error); }
 
+/* ─── Admin nav: desktop inline + mobile drawer ─── */
+.admin-nav-desktop { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.admin-burger { display: none; }
+.admin-drawer {
+  position: fixed; top: 0; right: 0; height: 100vh; width: min(280px, 82vw);
+  background: var(--surface); border-left: 1px solid var(--border);
+  transform: translateX(100%); transition: transform 0.25s ease; z-index: 100;
+  display: flex; flex-direction: column; gap: 4px; padding: 76px 14px 16px;
+}
+.admin-drawer.open { transform: translateX(0); box-shadow: -20px 0 60px rgba(0, 0, 0, 0.45); }
+.admin-drawer-link {
+  padding: 13px 14px; border-radius: 12px; text-align: left; font-size: 16px; font-weight: 600;
+  color: var(--text-secondary); background: transparent; border: none; cursor: pointer;
+}
+.admin-drawer-link.active { background: var(--surface-2); color: var(--text); }
+.admin-drawer-link.danger { color: var(--error); margin-top: auto; }
+
+/* ─── Network order cards (download screen) ─── */
+.net-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.net-card {
+  position: relative; border-radius: var(--radius); padding: 28px 20px 22px; cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.15); text-align: left; color: #1a1a1a;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.net-card:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4); }
+.net-card:disabled { cursor: default; opacity: 0.7; }
+.net-card.mtn { background: #ffcc00; }
+.net-card.telecel { background: #e2001a; color: #fff; }
+.net-card-count {
+  position: absolute; top: 14px; right: 14px; min-width: 42px; height: 42px; padding: 0 12px;
+  display: inline-grid; place-items: center; border-radius: 999px; font-weight: 800; font-size: 20px;
+  background: #1a1a1a; color: #fff;
+}
+.net-card.telecel .net-card-count { background: #fff; color: #e2001a; }
+.net-card-name { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.net-card-sub { font-size: 13px; margin-top: 4px; opacity: 0.75; }
+.net-card-cta { margin-top: 22px; font-weight: 700; font-size: 15px; }
+
 /* ─── Responsive ─── */
 @media (max-width: 900px) {
   .footer-grid { grid-template-columns: 1fr 1fr; }
@@ -537,6 +575,8 @@ a.footer-link:hover { color: var(--text); }
   .track-form { flex-direction: column; }
 
   /* ── Admin on mobile ── */
+  .admin-nav-desktop { display: none; }
+  .admin-burger { display: flex; }
   .admin-topbar { padding: 12px 16px; gap: 10px; }
   .admin-topbar .nav-logo-text { font-size: 17px; }
   .admin-topbar > div:last-child { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }

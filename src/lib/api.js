@@ -76,6 +76,30 @@ export async function fetchOrders({ status = 'all' } = {}) {
   return { ok: true, orders: data };
 }
 
+/**
+ * Fetch ALL matching orders, paging past Supabase's 1000-row cap so nothing is
+ * silently dropped as the order history grows.
+ * @param {{status?: string, network?: string}} opts
+ */
+export async function fetchAllOrders({ status = 'all', network } = {}) {
+  const pageSize = 1000;
+  const all = [];
+  for (let from = 0; ; from += pageSize) {
+    let q = supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (status !== 'all') q = q.eq('status', status);
+    if (network) q = q.eq('network', network);
+    const { data, error } = await q;
+    if (error) return { ok: false, error: error.message };
+    all.push(...data);
+    if (data.length < pageSize) break;
+  }
+  return { ok: true, orders: all };
+}
+
 export async function setOrderStatus(id, status) {
   const { error } = await supabase.from('orders').update({ status }).eq('id', id);
   if (error) return { ok: false, error: error.message };

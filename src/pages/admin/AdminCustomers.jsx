@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchOrders } from '../../lib/api';
+import { fetchAllOrders } from '../../lib/api';
 import { downloadPhoneList } from '../../lib/exportSheet';
 import { useToast } from '../../components/Toast.jsx';
 import AdminTopbar from './AdminTopbar.jsx';
@@ -14,7 +14,7 @@ export default function AdminCustomers() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetchOrders({ status: 'all' });
+    const res = await fetchAllOrders({ status: 'all' });
     setLoading(false);
     if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
     const set = new Set();
