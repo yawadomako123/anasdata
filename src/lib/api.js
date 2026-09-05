@@ -101,8 +101,17 @@ export async function fetchAllOrders({ status = 'all', network } = {}) {
 }
 
 export async function setOrderStatus(id, status) {
-  const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+  // .select() so a row that RLS silently refused to touch is reported as a
+  // failure instead of a success — see markOrdersStatus below.
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ status })
+    .eq('id', id)
+    .select('id');
   if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'That order was not updated. Check that you are still signed in.' };
+  }
   return { ok: true };
 }
 
@@ -112,10 +121,39 @@ export async function deleteOrder(id) {
   return { ok: true };
 }
 
-/** Update the status of many orders at once (e.g. a whole exported batch). */
+/**
+ * Update the status of many orders at once (e.g. a whole downloaded batch).
+ *
+ * Guards two failure modes that both used to pass as success:
+ *  - PostgREST puts the id list in the URL query string, so one big batch can
+ *    exceed the gateway URL limit. We send it in chunks.
+ *  - An UPDATE matching no rows (RLS, stale ids) returns 204 with no error, so
+ *    the caller reported success while nothing moved and the orders stayed in
+ *    the queue. .select() makes the server report what it actually changed.
+ *
+ * @returns {Promise<{ok: boolean, updated?: number, error?: string}>}
+ */
 export async function markOrdersStatus(ids, status) {
-  if (!ids || ids.length === 0) return { ok: true };
-  const { error } = await supabase.from('orders').update({ status }).in('id', ids);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  if (!ids || ids.length === 0) return { ok: true, updated: 0 };
+
+  const CHUNK = 100;
+  let updated = 0;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ status })
+      .in('id', ids.slice(i, i + CHUNK))
+      .select('id');
+    if (error) return { ok: false, updated, error: error.message };
+    updated += data?.length ?? 0;
+  }
+
+  if (updated < ids.length) {
+    return {
+      ok: false,
+      updated,
+      error: `Only ${updated} of ${ids.length} order(s) were updated — the rest are still in the queue. Check that you are still signed in, then try again.`,
+    };
+  }
+  return { ok: true, updated };
 }

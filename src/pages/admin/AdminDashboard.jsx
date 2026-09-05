@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchAllOrders, markOrdersStatus } from '../../lib/api';
 import { downloadOrderSheet } from '../../lib/exportSheet';
@@ -12,28 +12,33 @@ const NETS = [
 
 export default function AdminDashboard() {
   const toast = useToast();
-  const [orders, setOrders] = useState([]); // genuinely PAID, not yet loaded
+  const [orders, setOrders] = useState([]); // genuinely PAID, not yet downloaded
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
+  const reqId = useRef(0);
 
   const load = useCallback(async () => {
+    // A bulk update fires one realtime event per row, so several loads can be
+    // in flight at once. Only the newest one may write to state, otherwise a
+    // slow earlier response can overwrite fresh data and orders reappear.
+    const mine = ++reqId.current;
     setLoading(true);
-    // "To load" = genuinely PAID and not yet done. Payment status only ever
-    // becomes processing/paid/exported after TelaPay confirms (code 000), so
-    // failed and pending are never included. We include all three paid-but-not-
-    // done states so no paid order is ever stranded.
-    const [a, b, c] = await Promise.all([
+    // "To load" = genuinely PAID and not yet downloaded. Payment status only
+    // becomes processing/paid after TelaPay confirms (code 000), so failed and
+    // pending are never included.
+    //
+    // 'exported' is deliberately NOT here. It is a legacy status from the old
+    // "Export & Start Supplying" screen and means the order was ALREADY
+    // downloaded and handed off. Listing it here put finished orders back into
+    // the queue, so they got downloaded a second time.
+    const [a, b] = await Promise.all([
       fetchAllOrders({ status: 'processing' }),
       fetchAllOrders({ status: 'paid' }),
-      fetchAllOrders({ status: 'exported' }),
     ]);
+    if (mine !== reqId.current) return; // a newer load already answered
     setLoading(false);
     if (!a.ok) return toast(`⚠️ ${a.error}`, 'error');
-    setOrders([
-      ...(a.orders || []),
-      ...(b.ok ? b.orders : []),
-      ...(c.ok ? c.orders : []),
-    ]);
+    setOrders([...(a.orders || []), ...(b.ok ? b.orders : [])]);
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
@@ -57,10 +62,16 @@ export default function AdminDashboard() {
     )) return;
 
     setBusy(net.id);
-    downloadOrderSheet(list, `${net.id}-orders-${new Date().toISOString().slice(0, 10)}.csv`);
+    // Mark them done FIRST. If this fails the admin must not walk away with a
+    // sheet for orders that are still sitting in the queue — that is how the
+    // same numbers ended up being loaded twice.
     const res = await markOrdersStatus(list.map((o) => o.id), 'done');
     setBusy('');
-    if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
+    if (!res.ok) {
+      toast(`⚠️ ${res.error}`, 'error');
+      return load(); // show the real state of the queue
+    }
+    downloadOrderSheet(list, `${net.id}-orders-${new Date().toISOString().slice(0, 10)}.csv`);
     toast(`⬇️ ${list.length} ${net.name} order(s) downloaded`, 'success');
     load();
   }
