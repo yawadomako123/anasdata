@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { fetchAllOrders } from '../../lib/api';
+import { fetchAllOrders, verifyPaySwitchPayment } from '../../lib/api';
 import { downloadOrderSheet } from '../../lib/exportSheet';
 import { cedis, prettyDate } from '../../lib/format';
 import { NETWORKS } from '../../lib/data';
@@ -106,7 +106,26 @@ export default function AdminTransactions() {
                       <td>{o.bundle_name}</td>
                       <td><span className={`history-network-pill ${o.network}`}>{net ? net.name : o.network}</span></td>
                       <td className="strong">{cedis(o.price)}</td>
-                      <td><span className={`history-status-badge ${s.cls}`}>{s.text}</span></td>
+                      <td>
+                        <span className={`history-status-badge ${s.cls}`}>{s.text}</span>
+                        {o.status === 'pending' && (
+                          <button
+                            className="btn-mini"
+                            style={{ marginLeft: 8, padding: '4px 8px', fontSize: 11 }}
+                            onClick={async () => {
+                              const res = await verifyPaySwitchPayment(o.payment_ref);
+                              if (res.ok && res.status === 'paid') {
+                                toast('Payment verified! Added to Load queue.', 'success');
+                                load();
+                              } else {
+                                toast(`Status: ${res.status || 'unknown'}${res.error ? ` - ${res.error}` : ''}`, 'info');
+                              }
+                            }}
+                          >
+                            Verify
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
