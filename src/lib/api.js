@@ -89,6 +89,7 @@ export async function fetchAllOrders({ status = 'all', network } = {}) {
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .range(from, from + pageSize - 1);
     if (status !== 'all') q = q.eq('status', status);
     if (network) q = q.eq('network', network);
