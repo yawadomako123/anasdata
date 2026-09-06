@@ -81,7 +81,7 @@ export async function fetchOrders({ status = 'all' } = {}) {
  * silently dropped as the order history grows.
  * @param {{status?: string, network?: string}} opts
  */
-export async function fetchAllOrders({ status = 'all', network } = {}) {
+export async function fetchAllOrders({ status = 'all', network, since } = {}) {
   const pageSize = 1000;
   const all = [];
   for (let from = 0; ; from += pageSize) {
@@ -93,6 +93,7 @@ export async function fetchAllOrders({ status = 'all', network } = {}) {
       .range(from, from + pageSize - 1);
     if (status !== 'all') q = q.eq('status', status);
     if (network) q = q.eq('network', network);
+    if (since) q = q.gte('created_at', since);
     const { data, error } = await q;
     if (error) return { ok: false, error: error.message };
     all.push(...data);

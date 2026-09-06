@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { fetchAllOrders, markOrdersStatus } from '../../lib/api';
+import { fetchAllOrders, markOrdersStatus, verifyPaySwitchPayment } from '../../lib/api';
 import { downloadOrderSheet } from '../../lib/exportSheet';
 import { useToast } from '../../components/Toast.jsx';
 import AdminTopbar from './AdminTopbar.jsx';
@@ -51,6 +51,20 @@ export default function AdminDashboard() {
       .subscribe();
     return () => supabase.removeChannel(ch);
   }, [load]);
+
+  // Auto-recover stuck pending orders from the last 24 hours.
+  // African payment webhooks sometimes drop; this automatically cleans them up.
+  useEffect(() => {
+    async function recoverPending() {
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const res = await fetchAllOrders({ status: 'pending', since: yesterday });
+      if (!res.ok || !res.orders) return;
+      for (const o of res.orders) {
+        if (o.payment_ref) verifyPaySwitchPayment(o.payment_ref).catch(() => {});
+      }
+    }
+    recoverPending();
+  }, []);
 
   const count = (id) => orders.filter((o) => o.network === id).length;
 
