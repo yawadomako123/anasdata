@@ -1,9 +1,9 @@
 -- ════════════════════════════════════════════════════════════
---  Anasdata — RESEED BUNDLES  (MTN + Telecel, cheapdata.shop prices)
+--  Anasdata — RESEED BUNDLES  (MTN + Telecel + AirtelTigo)
 --
 --  Run this in the Supabase SQL Editor to REPLACE the whole bundle
 --  catalogue with the current price list. It clears the bundles table
---  and inserts the MTN + Telecel bundles (non-expiry).
+--  and inserts the MTN + Telecel + AirtelTigo bundles (non-expiry).
 --
 --  Safe: it only touches the `bundles` table. Orders are untouched.
 --  (You can still add/edit/delete individual bundles later from the
@@ -40,4 +40,16 @@ insert into public.bundles (network, name, data, data_value, price, badge, sort_
   ('telecel','Telecel 40GB','40GB',40,145.00,null,8),
   ('telecel','Telecel 45GB','45GB',45,165.00,null,9),
   ('telecel','Telecel 50GB','50GB',50,178.00,null,10),
-  ('telecel','Telecel 100GB','100GB',100,397.00,'Premium',11);
+  ('telecel','Telecel 100GB','100GB',100,397.00,'Premium',11),
+  -- ─────────────── AirtelTigo (mirrors Telecel) ───────────────
+  ('airteltigo','AirtelTigo 10GB','10GB',10,40.00,'Popular',1),
+  ('airteltigo','AirtelTigo 12GB','12GB',12,46.00,null,2),
+  ('airteltigo','AirtelTigo 15GB','15GB',15,56.00,null,3),
+  ('airteltigo','AirtelTigo 20GB','20GB',20,74.00,'Best Value',4),
+  ('airteltigo','AirtelTigo 25GB','25GB',25,90.75,null,5),
+  ('airteltigo','AirtelTigo 30GB','30GB',30,109.00,null,6),
+  ('airteltigo','AirtelTigo 35GB','35GB',35,130.65,null,7),
+  ('airteltigo','AirtelTigo 40GB','40GB',40,145.00,null,8),
+  ('airteltigo','AirtelTigo 45GB','45GB',45,165.00,null,9),
+  ('airteltigo','AirtelTigo 50GB','50GB',50,178.00,null,10),
+  ('airteltigo','AirtelTigo 100GB','100GB',100,397.00,'Premium',11);

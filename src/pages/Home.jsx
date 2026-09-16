@@ -26,7 +26,7 @@ export default function Home() {
   }, [bundles]);
 
   const countByNetwork = useMemo(() => {
-    const m = { mtn: 0, telecel: 0 };
+    const m = { mtn: 0, telecel: 0, airteltigo: 0 };
     bundles.forEach((b) => { if (m[b.network] != null) m[b.network] += 1; });
     return m;
   }, [bundles]);
@@ -47,7 +47,7 @@ export default function Home() {
             <span className="highlight">Instantly in Ghana</span>
           </h1>
           <p>
-            Pick a bundle for MTN or Telecel, pay securely with PaySwitch, and we
+            Pick a bundle for MTN, Telecel or AirtelTigo, pay securely with PaySwitch, and we
             load it to your number. Simple.
           </p>
           <div className="hero-actions">
@@ -67,7 +67,7 @@ export default function Home() {
         </div>
         <div className="hero-stats">
           <Stat value={bundles.length ? `${bundles.length}` : '—'} label="Bundle Options" />
-          <Stat value="2" label="Networks Covered" />
+          <Stat value="3" label="Networks Covered" />
           <Stat value={cheapest != null ? `GHS ${cheapest.toFixed(2)}` : '—'} label="Starting From" />
           <Stat value="Non-expiry" label="Data Bundles" />
         </div>
@@ -111,7 +111,7 @@ export default function Home() {
           </div>
           <div className="steps-grid">
             <Step n="1" title="Choose a Bundle"
-              desc="Browse non-expiry bundles for MTN and Telecel. Filter by network and size." />
+              desc="Browse non-expiry bundles for MTN, Telecel and AirtelTigo. Filter by network and size." />
             <Step n="2" title="Pay Securely"
               desc="Enter the number to top up and pay with PaySwitch — Mobile Money, Visa, or Mastercard." />
             <Step n="3" title="We Load It"

@@ -75,7 +75,7 @@ export default function Bundles() {
           <div className="bundles-page-sub">
             {loading
               ? 'Loading bundles…'
-              : <>Choose from <strong>{bundles.length}</strong> non-expiry bundles across MTN &amp; Telecel</>}
+              : <>Choose from <strong>{bundles.length}</strong> non-expiry bundles across MTN, Telecel &amp; AirtelTigo</>}
           </div>
         </div>
       </div>
@@ -104,6 +104,7 @@ export default function Bundles() {
               <option value="all">All Networks</option>
               <option value="mtn">MTN Ghana</option>
               <option value="telecel">Telecel Ghana</option>
+              <option value="airteltigo">AirtelTigo Ghana</option>
             </select>
           </div>
           <div className="filter-group">

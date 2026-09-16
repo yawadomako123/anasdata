@@ -8,6 +8,7 @@ import AdminTopbar from './AdminTopbar.jsx';
 const NETS = [
   { id: 'mtn', name: 'MTN' },
   { id: 'telecel', name: 'Telecel' },
+  { id: 'airteltigo', name: 'AirtelTigo' },
 ];
 
 export default function AdminDashboard() {

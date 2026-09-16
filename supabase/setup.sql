@@ -89,7 +89,7 @@ alter table public.ussd_sessions enable row level security;
 -- existing database. Run add-bundles.sql after this file for a fresh setup.
 create table if not exists public.bundles (
   id         uuid primary key default gen_random_uuid(),
-  network    text not null check (network in ('mtn','telecel')),
+  network    text not null check (network in ('mtn','telecel','airteltigo')),
   name       text not null,
   data       text not null,
   data_value numeric not null default 0,

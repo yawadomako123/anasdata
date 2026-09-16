@@ -24,7 +24,7 @@
   /* Network colours — used only as small accents (pills, thin bars). */
   --mtn: #f5c518;
   --mtn-text: #1a1a1a;
-  --airteltigo: #e0243c;
+  --airteltigo: #0057b8;
   --telecel: #d60f22;
 
   --radius: 14px;
@@ -234,16 +234,18 @@ input, select { font-family: inherit; }
   padding: 22px; transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
 }
 .bundle-card:hover { transform: translateY(-3px); border-color: var(--border-strong); box-shadow: var(--shadow-soft); }
-/* Full network-coloured cards (MTN yellow, Telecel red) */
+/* Full network-coloured cards (MTN yellow, Telecel red, AirtelTigo blue) */
 .bundle-card.mtn { background: #ffcc00; border-color: rgba(0, 0, 0, 0.18); color: #1a1a1a; }
 .bundle-card.telecel { background: #e2001a; border-color: rgba(0, 0, 0, 0.14); color: #fff; }
-.bundle-card.mtn:hover, .bundle-card.telecel:hover { box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4); }
+.bundle-card.airteltigo { background: #0057b8; border-color: rgba(0, 0, 0, 0.14); color: #fff; }
+.bundle-card.mtn:hover, .bundle-card.telecel:hover, .bundle-card.airteltigo:hover { box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4); }
 .bundle-card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 18px; }
 .bundle-network-pill {
   padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: 0.01em;
 }
 .bundle-network-pill.mtn { background: #1a1a1a; color: #ffcc00; }
 .bundle-network-pill.telecel { background: #fff; color: #e2001a; }
+.bundle-network-pill.airteltigo { background: #fff; color: #0057b8; }
 .bundle-badge {
   padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   background: var(--accent-soft); color: var(--accent);
@@ -253,6 +255,7 @@ input, select { font-family: inherit; }
 .bundle-data { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
 .bundle-data.mtn { color: #1a1a1a; }
 .bundle-data.telecel { color: #fff; }
+.bundle-data.airteltigo { color: #fff; }
 /* Contrast for text/borders inside the coloured cards */
 .bundle-card.mtn .bundle-name,
 .bundle-card.mtn .bundle-price-currency,
@@ -270,6 +273,14 @@ input, select { font-family: inherit; }
 .bundle-card.telecel .bundle-price-amount { color: #fff; }
 .bundle-card.telecel .bundle-meta { border-color: rgba(255, 255, 255, 0.25); }
 .bundle-card.telecel .bundle-badge { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.bundle-card.airteltigo .bundle-name,
+.bundle-card.airteltigo .bundle-price-currency,
+.bundle-card.airteltigo .bundle-price-per,
+.bundle-card.airteltigo .bundle-meta-label { color: rgba(255, 255, 255, 0.82); }
+.bundle-card.airteltigo .bundle-meta-value,
+.bundle-card.airteltigo .bundle-price-amount { color: #fff; }
+.bundle-card.airteltigo .bundle-meta { border-color: rgba(255, 255, 255, 0.25); }
+.bundle-card.airteltigo .bundle-badge { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .bundle-name { color: var(--text-secondary); font-size: 14px; margin-top: 2px; margin-bottom: 16px; }
 .bundle-meta { display: flex; gap: 24px; padding: 14px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 18px; }
 .bundle-meta-item { display: flex; flex-direction: column; gap: 2px; }
@@ -289,6 +300,8 @@ input, select { font-family: inherit; }
 .btn-buy.mtn:hover { background: #000; }
 .btn-buy.telecel { background: #fff; color: #e2001a; }
 .btn-buy.telecel:hover { background: #ffe3e6; }
+.btn-buy.airteltigo { background: #fff; color: #0057b8; }
+.btn-buy.airteltigo:hover { background: #dbeafe; }
 
 /* ─── Bundles page ─── */
 .bundles-page-header { padding: 44px 0 26px; border-bottom: 1px solid var(--border); }
@@ -421,7 +434,7 @@ input, select { font-family: inherit; }
 /* ─── Pills / badges shared ─── */
 .history-network-pill { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
 .history-network-pill.mtn { background: rgba(245, 197, 24, 0.16); color: #e7b70f; }
-.history-network-pill.airteltigo { background: rgba(224, 36, 60, 0.16); color: #ff6d7e; }
+.history-network-pill.airteltigo { background: rgba(0, 87, 184, 0.18); color: #6ea8ff; }
 .history-network-pill.telecel { background: rgba(214, 15, 34, 0.16); color: #ff6070; }
 .history-status-badge { padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .history-status-badge.success { background: rgba(47, 174, 97, 0.14); color: #52c07f; }
@@ -533,7 +546,7 @@ a.footer-link:hover { color: var(--text); }
 .admin-drawer-link.danger { color: var(--error); margin-top: 10px; border-top: 1px solid var(--border); border-radius: 0; padding-top: 16px; }
 
 /* ─── Network order cards (download screen) ─── */
-.net-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.net-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
 .net-card {
   border-radius: var(--radius); padding: 22px 20px; cursor: pointer;
   border: 1px solid rgba(0, 0, 0, 0.15); text-align: left; color: #1a1a1a;
@@ -543,6 +556,7 @@ a.footer-link:hover { color: var(--text); }
 .net-card:disabled { cursor: default; opacity: 0.7; }
 .net-card.mtn { background: #ffcc00; }
 .net-card.telecel { background: #e2001a; color: #fff; }
+.net-card.airteltigo { background: #0057b8; color: #fff; }
 .net-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .net-card-count {
   flex-shrink: 0; min-width: 40px; height: 40px; padding: 0 11px;
@@ -550,6 +564,7 @@ a.footer-link:hover { color: var(--text); }
   background: #1a1a1a; color: #fff;
 }
 .net-card.telecel .net-card-count { background: #fff; color: #e2001a; }
+.net-card.airteltigo .net-card-count { background: #fff; color: #0057b8; }
 .net-card-name { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
 .net-card-sub { font-size: 13px; margin-top: 4px; opacity: 0.75; }
 .net-card-cta { margin-top: 22px; font-weight: 700; font-size: 15px; }

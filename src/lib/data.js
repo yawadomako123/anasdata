@@ -23,6 +23,16 @@ export const NETWORKS = {
     tagline: 'Together We Can',
     hotline: '*700#',
   },
+  airteltigo: {
+    id: 'airteltigo',
+    name: 'AirtelTigo',
+    fullName: 'AirtelTigo Ghana',
+    color: '#0057B8',
+    tagline: 'Making Sense',
+    hotline: '*100#',
+  },
 };
 
-export const NETWORK_ORDER = ['mtn', 'telecel'];
+// AirtelTigo is APPENDED, never inserted: the USSD network menu is numbered
+// from this order, so 1 = MTN and 2 = Telecel must keep their positions.
+export const NETWORK_ORDER = ['mtn', 'telecel', 'airteltigo'];

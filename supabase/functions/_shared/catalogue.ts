@@ -8,7 +8,7 @@
 // ════════════════════════════════════════════════════════════
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-export type NetworkId = 'mtn' | 'telecel';
+export type NetworkId = 'mtn' | 'telecel' | 'airteltigo';
 
 export interface Bundle {
   id: string;
@@ -21,9 +21,12 @@ export interface Bundle {
 export const NETWORKS: Record<NetworkId, { name: string }> = {
   mtn: { name: 'MTN' },
   telecel: { name: 'Telecel' },
+  airteltigo: { name: 'AirtelTigo' },
 };
 
-export const NETWORK_ORDER: NetworkId[] = ['mtn', 'telecel'];
+// APPENDED, never inserted — the USSD network menu is numbered from this
+// array, so 1 = MTN and 2 = Telecel must keep their positions.
+export const NETWORK_ORDER: NetworkId[] = ['mtn', 'telecel', 'airteltigo'];
 
 // deno-lint-ignore no-explicit-any
 const mapBundle = (row: any): Bundle => ({
