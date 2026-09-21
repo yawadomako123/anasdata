@@ -97,23 +97,48 @@ Deno.serve(async (req) => {
     const transactionId = makeTransactionId();
     const deliveryToken = makeDeliveryToken();
 
-    const { data: order, error: insertErr } = await supabase
+    const baseRow = {
+      reference: transactionId,
+      price,
+      phone: recipient,
+      email: null,
+      status: 'pending',
+      channel: 'web',
+      payment_method: 'telapay-momo',
+      payment_ref: transactionId,
+      payer_phone: payer,
+    };
+
+    let { data: order, error: insertErr } = await supabase
       .from('orders')
-      .insert({
-        ...orderRow,
-        reference: transactionId,
-        price,
-        phone: recipient,
-        email: null,
-        status: 'pending',
-        channel: 'web',
-        payment_method: 'telapay-momo',
-        payment_ref: transactionId,
-        payer_phone: payer,
-        delivery_token: deliveryToken,
-      })
+      .insert({ ...baseRow, ...orderRow, delivery_token: deliveryToken })
       .select()
       .single();
+
+    // The checker columns arrive with add-checkers.sql. If this function is
+    // deployed before that migration has run, fall back to the legacy shape so
+    // data-bundle sales keep working instead of failing at the insert.
+    // Checkers genuinely cannot be sold until the migration lands.
+    const missingColumn =
+      insertErr && /product_type|voucher_type_id|delivery_token|column/i.test(insertErr.message ?? '');
+    if (missingColumn) {
+      if (voucherTypeId) {
+        return json({ error: 'Checkers are not available yet. Please try a top-up.' }, 503);
+      }
+      console.warn('orders: checker columns missing, using legacy insert —', insertErr?.message);
+      ({ data: order, error: insertErr } = await supabase
+        .from('orders')
+        .insert({
+          ...baseRow,
+          bundle_id: orderRow.bundle_id,
+          bundle_name: orderRow.bundle_name,
+          network: orderRow.network,
+          data: orderRow.data,
+        })
+        .select()
+        .single());
+    }
+
     if (insertErr || !order) {
       return json({ error: `Could not start order: ${insertErr?.message ?? 'unknown'}` }, 500);
     }

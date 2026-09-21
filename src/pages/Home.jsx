@@ -38,23 +38,48 @@ export default function Home() {
     [bundles]
   );
 
+  // Nothing in stock (or the checker tables aren't there yet) → the page
+  // quietly reverts to a top-up storefront.
+  const hasCheckers = checkers.length > 0;
+
   return (
     <>
-      {/* Hero */}
+      {/* Hero — leads with checkers, but only while there are checkers to
+          sell. With none in stock it falls back to top-ups rather than
+          advertising a product nobody can buy. */}
       <section className="hero">
         <div className="hero-content">
-          <h1>
-            Result Checkers
-            <br />
-            <span className="highlight">Delivered Instantly</span>
-          </h1>
-          <p>
-            Pay with Mobile Money and your serial and PIN arrive by SMS in seconds. Airtime and
-            data top-ups are available too.
-          </p>
+          {hasCheckers ? (
+            <>
+              <h1>
+                Result Checkers
+                <br />
+                <span className="highlight">Delivered Instantly</span>
+              </h1>
+              <p>
+                Pay with Mobile Money and your serial and PIN arrive by SMS in seconds. Airtime
+                and data top-ups are available too.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1>
+                Top Up Any Number
+                <br />
+                <span className="highlight">Instantly in Ghana</span>
+              </h1>
+              <p>
+                Non-expiry top-ups for MTN, Telecel and AirtelTigo. Pay with Mobile Money and we
+                load it to your number.
+              </p>
+            </>
+          )}
           <div className="hero-actions">
-            <button className="btn-primary" onClick={() => navigate('/checkers')}>
-              <span>Browse Checkers</span>
+            <button
+              className="btn-primary"
+              onClick={() => navigate(hasCheckers ? '/checkers' : '/bundles')}
+            >
+              <span>{hasCheckers ? 'Browse Checkers' : 'Browse Top-Ups'}</span>
               <span>→</span>
             </button>
             <Link className="btn-secondary" to="/track">
@@ -68,12 +93,25 @@ export default function Home() {
           )}
         </div>
         <div className="hero-stats">
-          <Stat value={checkers.length ? `${checkers.length}` : '—'} label="Checkers Available" />
-          <Stat value="Instant" label="SMS Delivery" />
-          <Stat
-            value={cheapestChecker != null ? `GHS ${cheapestChecker.toFixed(2)}` : '—'}
-            label="Starting From"
-          />
+          {hasCheckers ? (
+            <>
+              <Stat value={`${checkers.length}`} label="Checkers Available" />
+              <Stat value="Instant" label="SMS Delivery" />
+              <Stat
+                value={cheapestChecker != null ? `GHS ${cheapestChecker.toFixed(2)}` : '—'}
+                label="Starting From"
+              />
+            </>
+          ) : (
+            <>
+              <Stat value={bundles.length ? `${bundles.length}` : '—'} label="Options" />
+              <Stat value="3" label="Networks" />
+              <Stat
+                value={cheapestBundle != null ? `GHS ${cheapestBundle.toFixed(2)}` : '—'}
+                label="Starting From"
+              />
+            </>
+          )}
           <Stat value="MoMo" label="Pay With" />
         </div>
       </section>
@@ -149,8 +187,8 @@ export default function Home() {
       <section className="networks-section">
         <div className="container">
           <div className="section-header">
-            <span className="section-tag">Also available</span>
-            <h2 className="section-title">Top-Ups</h2>
+            <span className="section-tag">{hasCheckers ? 'Also available' : 'Networks'}</span>
+            <h2 className="section-title">{hasCheckers ? 'Top-Ups' : 'Pick Your Network'}</h2>
             <p className="section-sub">
               {cheapestBundle != null
                 ? `Non-expiry top-ups for all major networks, from ${cedis(cheapestBundle)}`

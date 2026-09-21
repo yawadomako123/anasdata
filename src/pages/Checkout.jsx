@@ -129,16 +129,24 @@ export default function Checkout() {
       const result = await pollUntilDone(init.transactionId, init.deliveryToken);
 
       if (result.paid) {
+        // The server only returns order detail when it can match our delivery
+        // token. If it can't (an older order row with no token), fall back to
+        // what this page already knows rather than showing a broken receipt.
         const o = result.order;
+        const network = o?.network ?? (isChecker ? null : item.network);
         navigate('/success', {
           replace: true,
           state: {
-            reference: o.reference,
-            productType: o.product_type,
-            bundle: { data: o.data, name: o.bundle_name, network: o.network },
-            phone: o.phone,
-            amount: Number(o.price),
-            network: o.network ? NETWORKS[o.network]?.fullName || o.network : null,
+            reference: o?.reference ?? init.transactionId,
+            productType: o?.product_type ?? (isChecker ? 'checker' : 'data'),
+            bundle: {
+              data: o?.data ?? (isChecker ? null : item.data),
+              name: o?.bundle_name ?? item.name,
+              network,
+            },
+            phone: o?.phone ?? phone,
+            amount: Number(o?.price ?? item.price),
+            network: network ? NETWORKS[network]?.fullName || network : null,
             // Shown once, here — the same PIN also goes out by SMS.
             voucher: result.voucher ?? null,
           },

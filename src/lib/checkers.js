@@ -14,6 +14,12 @@ const NOT_READY = {
   error: 'Backend not configured. See README.',
 };
 
+/** True when the checker tables/functions don't exist yet (migration pending). */
+const isMissingTable = (error) =>
+  error?.code === '42P01' ||
+  error?.code === 'PGRST205' ||
+  /does not exist|schema cache/i.test(error?.message ?? '');
+
 const mapType = (row, stock) => ({
   id: row.id,
   name: row.name,
@@ -45,7 +51,13 @@ export async function fetchCheckers() {
     supabase.rpc('voucher_stock'),
   ]);
 
-  if (error) return { ok: false, error: error.message, checkers: [] };
+  // Before add-checkers.sql has run the tables simply aren't there. That is
+  // "nothing to sell", not a failure worth showing a customer — the storefront
+  // falls back to leading with top-ups until stock exists.
+  if (error) {
+    if (isMissingTable(error)) return { ok: true, checkers: [] };
+    return { ok: false, error: error.message, checkers: [] };
+  }
 
   const counts = new Map((stock ?? []).map((s) => [s.type_id, Number(s.available)]));
   return { ok: true, checkers: (types ?? []).map((t) => mapType(t, counts.get(t.id))) };
@@ -58,7 +70,10 @@ export async function fetchCheckerById(id) {
     supabase.from('voucher_types').select('*').eq('id', id).eq('active', true).maybeSingle(),
     supabase.rpc('voucher_stock'),
   ]);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    if (isMissingTable(error)) return { ok: true, checker: null };
+    return { ok: false, error: error.message };
+  }
   if (!data) return { ok: true, checker: null };
   const counts = new Map((stock ?? []).map((s) => [s.type_id, Number(s.available)]));
   return { ok: true, checker: mapType(data, counts.get(data.id)) };
