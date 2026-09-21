@@ -12,9 +12,11 @@
 //
 //  Sells two things:
 //   • data bundles — loaded by hand from the admin queue
-//   • checkers     — a PIN is reserved here and SMS'd once MoMo confirms.
-//     The PIN can NOT be shown on screen: the session ends at payment
-//     initiation, long before the customer approves in their MoMo app.
+//   • checkers     — a PIN is reserved here and allocated once MoMo
+//     confirms. It can NOT be shown during the purchase: the session ends
+//     at payment initiation, long before the customer approves. They dial
+//     back and pick "My checkers" to collect it — the network authenticates
+//     their number, so no SMS gateway or API key is needed.
 //
 //  Deploy: supabase functions deploy frog-ussd --no-verify-jwt
 // ════════════════════════════════════════════════════════════
@@ -27,6 +29,7 @@ import {
   type NetworkId,
 } from '../_shared/catalogue.ts';
 import { inStockVoucherTypes, getVoucherType, reserveVoucher, releaseVoucher } from '../_shared/vouchers.ts';
+import { markRetrieved } from '../_shared/fulfil.ts';
 import { notifyTelegram } from '../_shared/notify.ts';
 import { initiateCharge, networkFromPhone } from '../_shared/telapay.ts';
 
@@ -51,8 +54,14 @@ function toLocal(msisdn: string): string {
 const isGhPhone = (p: string) => /^0[235][0-9]{8}$/.test(p);
 const money = (n: number) => `GHS${n.toFixed(2)}`;
 
+// A USSD screen is capped at 160 characters and a menu shows four items, so a
+// long product name can push a whole page over the limit and get it truncated
+// by the gateway. Clip names rather than let that happen.
+const short = (s: string, max = 18) =>
+  String(s).length <= max ? String(s) : String(s).slice(0, max - 1).trimEnd() + '.';
+
 interface SessionState {
-  step: 'home' | 'network' | 'bundle' | 'checker' | 'recipient' | 'enterNumber' | 'confirm';
+  step: 'home' | 'network' | 'bundle' | 'checker' | 'recipient' | 'enterNumber' | 'confirm' | 'myCheckers';
   product?: 'data' | 'checker';
   network?: NetworkId;
   page?: number;
@@ -78,7 +87,7 @@ function homeMenu(): string {
   // flow rather than greeting every caller.
   return (
     'Welcome to Anasdata.\n' +
-    '1. Buy data bundle\n2. Buy checker\n3. Contact support'
+    '1. Buy data bundle\n2. Buy checker\n3. My checkers\n4. Contact support'
   );
 }
 function contactScreen(): string {
@@ -107,17 +116,55 @@ async function checkerMenu(db: SupabaseClient, page: number): Promise<string> {
   if (all.length === 0) return 'No checkers in stock right now.\n9. Back';
   const start = page * PAGE_SIZE;
   const slice = all.slice(start, start + PAGE_SIZE);
-  const lines = slice.map((t, i) => `${i + 1}. ${t.name} ${money(t.price)}`);
+  const lines = slice.map((t, i) => `${i + 1}. ${short(t.name)} ${money(t.price)}`);
   const nav: string[] = [];
   if (start + PAGE_SIZE < all.length) nav.push('0.More');
   nav.push('9.Back');
   return `Checkers:\n${lines.join('\n')}\n${nav.join('  ')}`;
 }
+/**
+ * Checkers this caller has paid for.
+ *
+ * The USSD gateway gives us an MSISDN the mobile network has already
+ * authenticated, which is a stronger identity check than anything we could
+ * ask for on a web form — so no SMS, login or API key is needed for someone
+ * to collect their own PIN. We match both the number the PIN was bought for
+ * and the number that paid, since those are the two legitimate parties.
+ */
+async function myCheckers(db: SupabaseClient, msisdn: string) {
+  const local = toLocal(msisdn);
+  const { data } = await db
+    .from('orders')
+    .select('id, reference, bundle_name, created_at, status')
+    .eq('product_type', 'checker')
+    .in('status', ['done', 'processing'])
+    .or(`phone.eq.${local},payer_phone.eq.${local}`)
+    .order('created_at', { ascending: false })
+    .limit(12);
+  return data ?? [];
+}
+
+// deno-lint-ignore no-explicit-any
+function myCheckersMenu(rows: any[], page: number): string {
+  if (rows.length === 0) return 'No checkers found for this number.\n9. Back';
+  const start = page * PAGE_SIZE;
+  const slice = rows.slice(start, start + PAGE_SIZE);
+  const lines = slice.map((o, i) => {
+    const d = new Date(o.created_at);
+    const when = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return `${i + 1}. ${short(o.bundle_name)} ${when}`;
+  });
+  const nav: string[] = [];
+  if (start + PAGE_SIZE < rows.length) nav.push('0.More');
+  nav.push('9.Back');
+  return `Your checkers:\n${lines.join('\n')}\n${nav.join('  ')}`;
+}
+
 async function confirmScreen(db: SupabaseClient, state: SessionState, recipient: string): Promise<string> {
   if (state.product === 'checker') {
     const t = await getVoucherType(db, state.voucherTypeId!);
     if (!t) return 'Checker unavailable. Dial again.';
-    return `${t.name}\nPIN to: ${recipient}\nPay ${money(t.price)}\n1. Confirm\n2. Cancel`;
+    return `${t.name}\nFor: ${recipient}\nPay ${money(t.price)}\n1. Confirm\n2. Cancel`;
   }
   const b = await getBundle(db, state.bundleId!);
   if (!b) return 'Bundle unavailable. Dial again.';
@@ -217,6 +264,10 @@ Deno.serve(async (req) => {
         return reply(body, await checkerMenu(db, 0), true);
       }
       if (userdata === '3') {
+        await saveState(db, sessionid, { step: 'myCheckers', page: 0 });
+        return reply(body, myCheckersMenu(await myCheckers(db, phone), 0), true);
+      }
+      if (userdata === '4') {
         await clearState(db, sessionid);
         return reply(body, contactScreen(), false);
       }
@@ -279,7 +330,47 @@ Deno.serve(async (req) => {
         step: 'recipient', product: 'checker', voucherTypeId: chosen.id,
       });
       const own = toLocal(phone);
-      return reply(body, `${chosen.name} ${money(chosen.price)}\nSMS PIN to:\n1. This No (${own})\n2. Other No`, true);
+      // The number just labels the purchase and lets that person collect it
+      // too — nothing is sent to it.
+      return reply(body, `${chosen.name} ${money(chosen.price)}\nFor which No:\n1. This No (${own})\n2. Other No`, true);
+    }
+
+    // collect a PIN already paid for
+    if (state.step === 'myCheckers') {
+      const rows = await myCheckers(db, phone);
+      const page = state.page ?? 0;
+      if (userdata === '9') {
+        await saveState(db, sessionid, { step: 'home' });
+        return reply(body, homeMenu(), true);
+      }
+      if (userdata === '0') {
+        const nextPage = (page + 1) * PAGE_SIZE < rows.length ? page + 1 : page;
+        await saveState(db, sessionid, { ...state, page: nextPage });
+        return reply(body, myCheckersMenu(rows, nextPage), true);
+      }
+      const n = parseInt(userdata, 10);
+      const chosen = rows[page * PAGE_SIZE + (n - 1)];
+      if (!n || n < 1 || n > PAGE_SIZE || !chosen) {
+        return reply(body, `Invalid.\n${myCheckersMenu(rows, page)}`, true);
+      }
+
+      const { data: v } = await db
+        .from('vouchers').select('serial, pin').eq('order_id', chosen.id).maybeSingle();
+      await clearState(db, sessionid);
+
+      if (!v) {
+        return reply(
+          body,
+          `${chosen.bundle_name}\nPIN not ready yet. Contact support with Ref ${chosen.reference}`,
+          false
+        );
+      }
+      await markRetrieved(db, String(chosen.id));
+      return reply(
+        body,
+        `${chosen.bundle_name}\nSerial: ${v.serial}\nPIN: ${v.pin}\nRef ${chosen.reference}`,
+        false
+      );
     }
 
     // whose number
@@ -409,7 +500,7 @@ Deno.serve(async (req) => {
       } catch { /* not available locally — fine */ }
 
       const tail = isChecker
-        ? `PIN is sent by SMS to ${recipient} after payment.`
+        ? 'Dial again and pick My checkers for your PIN.'
         : `${label} loads to ${recipient} after payment.`;
       return reply(
         body,

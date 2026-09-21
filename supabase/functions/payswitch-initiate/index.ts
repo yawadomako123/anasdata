@@ -7,7 +7,7 @@
 //
 //  Sells two things:
 //    • bundleId       → a data bundle (loaded by hand from the admin queue)
-//    • voucherTypeId  → a checker (PIN reserved here, SMS'd on payment)
+//    • voucherTypeId  → a checker (PIN reserved here, shown once paid)
 //
 //  Deploy:  supabase functions deploy payswitch-initiate
 //  Secrets: TELAPAY_CLIENT_ID, TELAPAY_CLIENT_SECRET, TELAPAY_TERMINAL_ID

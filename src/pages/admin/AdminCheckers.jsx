@@ -4,9 +4,11 @@ import {
   createChecker,
   updateChecker,
   uploadCheckerPins,
+  fetchUndeliveredCheckers,
+  revealCheckerPin,
   parsePinCsv,
 } from '../../lib/checkers';
-import { cedis } from '../../lib/format';
+import { cedis, prettyDate } from '../../lib/format';
 import { useToast } from '../../components/Toast.jsx';
 import AdminTopbar from './AdminTopbar.jsx';
 
@@ -25,15 +27,28 @@ export default function AdminCheckers() {
   const [csv, setCsv] = useState('');
   const [uploading, setUploading] = useState(false);
 
+  // Paid but not yet collected by the customer
+  const [uncollected, setUncollected] = useState([]);
+  const [revealed, setRevealed] = useState({});
+
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetchCheckerStock();
+    const [res, un] = await Promise.all([fetchCheckerStock(), fetchUndeliveredCheckers()]);
     setLoading(false);
     if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
     setTypes(res.types || []);
+    if (un.ok) setUncollected(un.orders || []);
   }, [toast]);
+
+  // Nothing is pushed to the customer, so an order nobody has opened is the
+  // thing to watch: they paid and may not know how to collect.
+  async function reveal(orderId) {
+    const res = await revealCheckerPin(orderId);
+    if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
+    setRevealed((r) => ({ ...r, [orderId]: res.voucher }));
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -100,8 +115,9 @@ export default function AdminCheckers() {
       <div className="admin-body">
         <h2 style={{ margin: '0 0 6px' }}>Checkers</h2>
         <p className="muted small" style={{ margin: '0 0 22px' }}>
-          Checkers sell themselves — once payment lands the PIN is texted automatically. Your only
-          job is keeping stock topped up.
+          Checkers sell themselves — once payment lands the customer sees their PIN on screen,
+          and can look it up again via Track Order or by dialling in. Your only job is keeping
+          stock topped up.
         </p>
 
         {/* Add a product */}
@@ -180,6 +196,48 @@ export default function AdminCheckers() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Not collected yet */}
+        <h3 style={{ marginBottom: 6 }}>
+          Not collected yet {uncollected.length > 0 && <span className="muted">({uncollected.length})</span>}
+        </h3>
+        <p className="muted small" style={{ margin: '0 0 12px' }}>
+          Paid for, but the customer hasn't opened their PIN. They can get it from Track Order
+          using the reference, or by dialling in and picking <strong>My checkers</strong>. Reveal
+          it here if they call you stuck.
+        </p>
+        {uncollected.length === 0 ? (
+          <div className="muted small" style={{ padding: '4px 4px 22px' }}>
+            Nothing outstanding — every paid checker has been collected.
+          </div>
+        ) : (
+          <div className="admin-table-wrap" style={{ marginBottom: 26 }}>
+            <table className="admin-table">
+              <thead>
+                <tr><th>Date</th><th>Checker</th><th>Phone</th><th>Reference</th><th>PIN</th></tr>
+              </thead>
+              <tbody>
+                {uncollected.map((o) => (
+                  <tr key={o.id}>
+                    <td className="muted small">{prettyDate(o.created_at)}</td>
+                    <td>{o.bundle_name}</td>
+                    <td className="mono strong">{o.phone}</td>
+                    <td className="mono small">{o.reference}</td>
+                    <td>
+                      {revealed[o.id] ? (
+                        <span className="mono strong">
+                          {revealed[o.id].serial} / {revealed[o.id].pin}
+                        </span>
+                      ) : (
+                        <button className="btn-secondary" onClick={() => reveal(o.id)}>Reveal</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

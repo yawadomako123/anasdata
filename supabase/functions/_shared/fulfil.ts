@@ -7,12 +7,20 @@
 //  run twice, so everything below is idempotent.
 //
 //   • data bundle → 'processing', i.e. the admin load queue (human loads it)
-//   • checker     → claim the reserved PIN, SMS it, 'done' (no human)
+//   • checker     → claim the reserved PIN and mark 'done'
+//
+//  DELIVERY, without any third-party account or API key:
+//   • web    — the PIN is shown on the success page (the browser is still
+//              open), and again via Track Order using the reference.
+//   • USSD   — the caller dials back and picks "My checkers". The network
+//              authenticates their MSISDN for us, so no separate login and
+//              no SMS gateway is involved.
+//  `delivered_at` is stamped the first time the customer actually sees the
+//  PIN through any of those routes, so the admin can tell who has collected.
 // ════════════════════════════════════════════════════════════
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { notifyTelegram, notifyTelegramText } from './notify.ts';
 import { claimVoucher } from './vouchers.ts';
-import { sendSms, checkerSms } from './sms.ts';
 
 export interface FulfilResult {
   order: Record<string, unknown>;
@@ -38,7 +46,7 @@ export async function confirmAndFulfil(
     return { order: updated ?? order };
   }
 
-  // ── Checker: fulfil itself ──
+  // ── Checker: allocate the PIN ──
   // claim_voucher also returns an ALREADY-sold voucher for this order, so a
   // redelivered webhook hands back the same PIN instead of burning a new one.
   const voucher = await claimVoucher(db, id);
@@ -62,36 +70,25 @@ export async function confirmAndFulfil(
     return { order: updated ?? order };
   }
 
-  // Only send once: a repeat callback must not re-text the customer.
-  const alreadyDelivered = Boolean(order.delivered_at);
-  let deliveryError: string | null = (order.delivery_error as string) ?? null;
-  let deliveredAt: string | null = (order.delivered_at as string) ?? null;
-
-  if (!alreadyDelivered) {
-    const sms = await sendSms(
-      String(order.phone),
-      checkerSms(String(order.bundle_name), voucher.serial, voucher.pin, String(order.reference))
-    );
-    if (sms.ok) {
-      deliveredAt = new Date().toISOString();
-      deliveryError = null;
-    } else {
-      // The sale stands and the PIN is theirs — only the text failed. Record
-      // why so the admin can resend rather than the customer being stranded.
-      deliveryError = sms.error ?? 'SMS failed';
-      await notifyTelegramText(
-        `⚠️ *Checker SMS failed*\n` +
-        `Ref \`${order.reference}\` — ${order.phone}\n` +
-        `${deliveryError}\nResend from the admin.`
-      );
-    }
-  }
-
+  const wasAlreadyDone = order.status === 'done';
   const { data: updated } = await db
     .from('orders')
-    .update({ status: 'done', delivered_at: deliveredAt, delivery_error: deliveryError })
+    .update({ status: 'done', delivery_error: null })
     .eq('id', id).select().single();
 
-  if (!alreadyDelivered) await notifyTelegram(updated ?? order);
+  if (!wasAlreadyDone) await notifyTelegram(updated ?? order);
   return { order: updated ?? order, voucher };
+}
+
+/**
+ * Stamp the first time a customer actually saw their PIN (success page,
+ * Track Order, or dialling back in). Only ever set once.
+ */
+export async function markRetrieved(db: SupabaseClient, orderId: string): Promise<void> {
+  const { error } = await db
+    .from('orders')
+    .update({ delivered_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .is('delivered_at', null);
+  if (error) console.error('markRetrieved failed', error.message);
 }

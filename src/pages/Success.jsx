@@ -33,11 +33,11 @@ export default function Success() {
         <h1 className="success-title">{isChecker ? 'Payment Confirmed' : 'Order Received'}</h1>
         <p className="success-sub">
           {isChecker
-            ? 'Your checker is ready. It has also been sent by SMS — save it somewhere safe.'
+            ? 'Your checker is ready. Save it somewhere safe — you can also look it up again any time.'
             : 'Payment confirmed. Your bundle is queued and will be loaded to your number shortly. Keep your reference in case you need to track it.'}
         </p>
 
-        {/* The PIN is shown once, here. The SMS is the durable copy. */}
+        {/* Shown here, and retrievable later via Track Order or by dialling in. */}
         {isChecker && voucher && (
           <div className="voucher-card">
             <div className="voucher-card-label">Your Checker</div>
@@ -58,8 +58,8 @@ export default function Success() {
           <div className="voucher-card pending">
             <div className="voucher-card-label">Your Checker</div>
             <p className="muted small" style={{ margin: 0 }}>
-              Your PIN is on its way by SMS to {phone}. If it hasn't arrived in a few minutes,
-              contact support with the reference below.
+              Your PIN is being prepared. Use Track This Order below with the reference to view
+              it, or contact support if it doesn't appear shortly.
             </p>
           </div>
         )}
@@ -73,7 +73,7 @@ export default function Success() {
           {isChecker ? (
             <>
               <Detail label="Item" value={bundle.name} />
-              <Detail label="Sent to" value={phone} />
+              <Detail label="For" value={phone} />
             </>
           ) : (
             <>

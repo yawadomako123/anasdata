@@ -10,7 +10,7 @@ import { useToast } from '../components/Toast.jsx';
 /**
  * One checkout for both products.
  *  /checkout/:bundleId                 → data bundle (loaded by hand)
- *  /checkout/checker/:voucherTypeId    → checker (PIN by SMS, instant)
+ *  /checkout/checker/:voucherTypeId    → checker (PIN shown on screen)
  */
 export default function Checkout() {
   const { bundleId, voucherTypeId } = useParams();
@@ -21,7 +21,7 @@ export default function Checkout() {
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [phone, setPhone] = useState(''); // number to top up / to SMS the PIN to
+  const [phone, setPhone] = useState(''); // number to top up / to look the PIN up by
   const [momo, setMomo] = useState(''); // Mobile Money number to charge (payer)
   const [momoEdited, setMomoEdited] = useState(false);
   const [touched, setTouched] = useState({});
@@ -107,7 +107,7 @@ export default function Checkout() {
   async function handlePay() {
     setTouched({ phone: true, momo: true });
     if (!phoneOk) {
-      return toast(isChecker ? '⚠️ Enter a valid number for the PIN' : '⚠️ Enter a valid number to top up', 'error');
+      return toast(isChecker ? '⚠️ Enter a valid number' : '⚠️ Enter a valid number to top up', 'error');
     }
     if (!momoOk) return toast('⚠️ Enter a valid Mobile Money number', 'error');
 
@@ -147,7 +147,7 @@ export default function Checkout() {
             phone: o?.phone ?? phone,
             amount: Number(o?.price ?? item.price),
             network: network ? NETWORKS[network]?.fullName || network : null,
-            // Shown once, here — the same PIN also goes out by SMS.
+            // Shown here; also retrievable later via Track Order or USSD.
             voucher: result.voucher ?? null,
           },
         });
@@ -193,7 +193,7 @@ export default function Checkout() {
             {isChecker ? (
               <>
                 <Meta label="Type" value="Checker PIN" />
-                <Meta label="Delivery" value="SMS, instant" />
+                <Meta label="Delivery" value="On screen, instant" />
                 <Meta label="In stock" value={`${item.available}`} />
               </>
             ) : (
@@ -209,7 +209,7 @@ export default function Checkout() {
         <div className="checkout-form">
           <div className="form-group">
             <label className="form-label" htmlFor="phone">
-              {isChecker ? 'Number to Receive the PIN' : 'Number to Top Up'} <span>*</span>
+              {isChecker ? 'Your Phone Number' : 'Number to Top Up'} <span>*</span>
             </label>
             <input
               id="phone"
@@ -223,7 +223,7 @@ export default function Checkout() {
             />
             <div className="form-hint">
               {isChecker
-                ? '📩 The serial and PIN are texted to this number'
+                ? '🎫 Your PIN shows on the next screen. This number lets you look it up again later.'
                 : '📱 The bundle will be loaded to this number'}
             </div>
             {touched.phone && !phoneOk && (

@@ -10,7 +10,7 @@ export default function Footer() {
             <span className="nav-logo-text">Anasdata</span>
           </div>
           <p>
-            Results checkers delivered by SMS, plus non-expiry top-ups for every major network.
+            Results checkers delivered instantly, plus non-expiry top-ups for every major network.
             Fast, secure Mobile Money checkout.
           </p>
         </div>

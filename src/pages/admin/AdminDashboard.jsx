@@ -36,8 +36,8 @@ export default function AdminDashboard() {
       fetchAllOrders({ status: 'processing' }),
       fetchAllOrders({ status: 'paid' }),
     ]);
-    // Checkers are delivered automatically by SMS — they are never loaded by
-    // hand, so they do not belong in this queue.
+    // Checkers deliver themselves — the customer collects the PIN on screen
+    // or by dialling in — so they are never loaded by hand.
     const onlyData = (list) => (list || []).filter((o) => (o.product_type ?? 'data') === 'data');
     if (mine !== reqId.current) return; // a newer load already answered
     setLoading(false);

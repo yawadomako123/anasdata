@@ -12,7 +12,6 @@
 //  (keep JWT verification ON — this is admin-only)
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { sendSms, checkerSms } from '../_shared/sms.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -129,8 +128,10 @@ Deno.serve(async (req) => {
       return json({ submitted: rows.length, added: data?.length ?? 0 });
     }
 
-    // ── Resend a PIN whose SMS failed ──
-    if (action === 'resend') {
+    // ── Read a PIN back for support ──
+    // Customers collect their own PIN (success page, Track Order, or dialling
+    // back in). This exists for the case where someone phones up stuck.
+    if (action === 'reveal') {
       const { orderId } = args;
       if (!orderId) return json({ error: 'Missing orderId.' }, 400);
       const { data: order } = await db
@@ -141,17 +142,26 @@ Deno.serve(async (req) => {
         .from('vouchers').select('serial, pin').eq('order_id', orderId).maybeSingle();
       if (!v) return json({ error: 'No PIN attached to that order.' }, 404);
 
-      const sms = await sendSms(
-        String(order.phone),
-        checkerSms(String(order.bundle_name), v.serial, v.pin, String(order.reference))
-      );
-      await db.from('orders').update({
-        delivered_at: sms.ok ? new Date().toISOString() : order.delivered_at,
-        delivery_error: sms.ok ? null : (sms.error ?? 'SMS failed'),
-      }).eq('id', orderId);
+      return json({
+        voucher: { serial: v.serial, pin: v.pin },
+        order: {
+          reference: order.reference, phone: order.phone,
+          bundle_name: order.bundle_name, delivered_at: order.delivered_at,
+        },
+      });
+    }
 
-      if (!sms.ok) return json({ error: sms.error ?? 'SMS failed' }, 502);
-      return json({ ok: true });
+    // ── Orders a customer has not collected yet ──
+    if (action === 'undelivered') {
+      const { data } = await db
+        .from('orders')
+        .select('id, reference, phone, bundle_name, created_at, delivery_error')
+        .eq('product_type', 'checker')
+        .in('status', ['done', 'processing'])
+        .is('delivered_at', null)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      return json({ orders: data ?? [] });
     }
 
     return json({ error: `Unknown action: ${action}` }, 400);

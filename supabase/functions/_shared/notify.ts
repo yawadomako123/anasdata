@@ -33,7 +33,7 @@ export async function notifyTelegram(order: Record<string, unknown>) {
   lines.push(`💵 GHS ${Number(order.price).toFixed(2)}`);
   lines.push(`🔖 ${order.reference}`);
   if (isChecker) {
-    lines.push(order.delivered_at ? '✅ PIN sent by SMS' : '⚠️ PIN not yet delivered');
+    lines.push(order.delivered_at ? '✅ PIN collected' : '🎫 PIN ready — customer can view it online or dial in');
   }
 
   await notifyTelegramText(lines.join('\n'));

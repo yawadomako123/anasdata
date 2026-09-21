@@ -109,8 +109,11 @@ export const updateChecker = (id, patch) => adminCall('update_type', { id, ...pa
 /** Bulk-add PIN stock. Re-uploading the same file adds nothing. */
 export const uploadCheckerPins = (typeId, pins) => adminCall('upload', { typeId, pins });
 
-/** Re-send a PIN whose SMS bounced. */
-export const resendCheckerPin = (orderId) => adminCall('resend', { orderId });
+/** Read a PIN back for a customer who phones support. */
+export const revealCheckerPin = (orderId) => adminCall('reveal', { orderId });
+
+/** Paid checkers the customer has not viewed yet. */
+export const fetchUndeliveredCheckers = () => adminCall('undelivered');
 
 /**
  * Parse a pasted/uploaded CSV of PIN stock.

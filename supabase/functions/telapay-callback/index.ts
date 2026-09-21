@@ -4,7 +4,7 @@
 //  TelaPay POSTs the final MoMo result here (both web + USSD). We verify the
 //  X-Signature (HMAC-SHA256 of the raw body), and on code "000" finish the
 //  order: data bundles join the admin load queue, checkers claim their
-//  reserved PIN and go out by SMS. Ack with 200 quickly.
+//  reserved PIN ready for the customer to collect. Ack with 200 quickly.
 //
 //  Set this as the `callback` — it's sent automatically on every charge.
 //  Deploy: supabase functions deploy telapay-callback --no-verify-jwt

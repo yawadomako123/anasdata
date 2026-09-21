@@ -33,7 +33,7 @@ export default function Checkers() {
               ? 'Loading…'
               : available.length === 0
               ? 'Nothing in stock at the moment — please check back soon.'
-              : <>Pay with Mobile Money and your PIN arrives by <strong>SMS</strong> straight away.</>}
+              : <>Pay with Mobile Money and your PIN appears <strong>on screen</strong> straight away.</>}
           </div>
         </div>
       </div>
@@ -63,7 +63,7 @@ export default function Checkers() {
                 <div className="bundle-meta">
                   <div className="bundle-meta-item">
                     <span className="bundle-meta-label">Delivery</span>
-                    <span className="bundle-meta-value">SMS</span>
+                    <span className="bundle-meta-value">Instant</span>
                   </div>
                   <div className="bundle-meta-item">
                     <span className="bundle-meta-label">Availability</span>

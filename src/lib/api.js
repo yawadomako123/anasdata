@@ -71,7 +71,8 @@ export async function trackOrder(query) {
   });
   if (error) return { ok: false, error: await readFnError(error) };
   if (data?.error) return { ok: false, error: data.error };
-  return { ok: true, orders: data.orders ?? [] };
+  // A PIN comes back only when the customer searched by exact reference.
+  return { ok: true, orders: data.orders ?? [], voucher: data.voucher ?? null };
 }
 
 // ── Admin-only (requires an authenticated Supabase session) ──

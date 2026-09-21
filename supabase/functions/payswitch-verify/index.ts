@@ -13,7 +13,7 @@
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { checkStatus } from '../_shared/telapay.ts';
-import { confirmAndFulfil } from '../_shared/fulfil.ts';
+import { confirmAndFulfil, markRetrieved } from '../_shared/fulfil.ts';
 import { releaseVoucher } from '../_shared/vouchers.ts';
 
 const CORS = {
@@ -80,7 +80,10 @@ Deno.serve(async (req) => {
       if (o.product_type === 'checker' && (o.status === 'done' || o.status === 'processing')) {
         const { data: v } = await supabase
           .from('vouchers').select('serial, pin').eq('order_id', o.id).maybeSingle();
-        if (v) body.voucher = { serial: v.serial, pin: v.pin };
+        if (v) {
+          body.voucher = { serial: v.serial, pin: v.pin };
+          await markRetrieved(supabase, String(o.id));
+        }
       }
       return json(body);
     };

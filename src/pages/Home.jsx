@@ -57,8 +57,8 @@ export default function Home() {
                 <span className="highlight">Delivered Instantly</span>
               </h1>
               <p>
-                Pay with Mobile Money and your serial and PIN arrive by SMS in seconds. Airtime
-                and data top-ups are available too.
+                Pay with Mobile Money and your serial and PIN appear on screen in seconds.
+                Airtime and data top-ups are available too.
               </p>
             </>
           ) : (
@@ -96,7 +96,7 @@ export default function Home() {
           {hasCheckers ? (
             <>
               <Stat value={`${checkers.length}`} label="Checkers Available" />
-              <Stat value="Instant" label="SMS Delivery" />
+              <Stat value="Instant" label="Delivery" />
               <Stat
                 value={cheapestChecker != null ? `GHS ${cheapestChecker.toFixed(2)}` : '—'}
                 label="Starting From"
@@ -123,7 +123,7 @@ export default function Home() {
             <div className="section-header">
               <span className="section-tag">Checkers</span>
               <h2 className="section-title">Get Your Results Checker</h2>
-              <p className="section-sub">Paid for by Mobile Money, sent to your phone by SMS</p>
+              <p className="section-sub">Paid for by Mobile Money, shown to you straight away</p>
             </div>
             <div className="bundles-grid">
               {checkers.slice(0, 6).map((c) => (
@@ -136,7 +136,7 @@ export default function Home() {
                   <div className="bundle-meta">
                     <div className="bundle-meta-item">
                       <span className="bundle-meta-label">Delivery</span>
-                      <span className="bundle-meta-value">SMS</span>
+                      <span className="bundle-meta-value">Instant</span>
                     </div>
                     <div className="bundle-meta-item">
                       <span className="bundle-meta-label">Availability</span>
@@ -178,7 +178,7 @@ export default function Home() {
             <Step n="2" title="Pay Securely"
               desc="Enter your number and approve the Mobile Money prompt on your phone." />
             <Step n="3" title="Get It Instantly"
-              desc="Checker PINs arrive by SMS straight away. Top-ups follow shortly after." />
+              desc="Checker PINs appear on screen at once, and stay available under Track Order. Top-ups follow shortly after." />
           </div>
         </div>
       </section>

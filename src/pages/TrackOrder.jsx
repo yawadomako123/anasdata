@@ -18,6 +18,7 @@ export default function TrackOrder() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [voucher, setVoucher] = useState(null);
 
   async function lookup(value) {
     const q = (value || '').trim();
@@ -25,11 +26,13 @@ export default function TrackOrder() {
     setLoading(true);
     setError('');
     setOrders([]);
+    setVoucher(null);
     const res = await trackOrder(q);
     setLoading(false);
     setSearched(true);
     if (!res.ok) return setError(res.error);
     setOrders(res.orders);
+    setVoucher(res.voucher || null);
   }
 
   // Auto-lookup if we arrived from the success page (by reference).
@@ -69,6 +72,21 @@ export default function TrackOrder() {
             <div className="no-bundles-icon">🔍</div>
             <h3>No order found</h3>
             <p>Double-check the phone number or reference and try again.</p>
+          </div>
+        )}
+
+        {/* Only ever present when the search was by exact reference. */}
+        {voucher && (
+          <div className="voucher-card" style={{ marginTop: 20 }}>
+            <div className="voucher-card-label">Your Checker</div>
+            <div className="voucher-field" style={{ cursor: 'default' }}>
+              <span className="voucher-field-label">Serial</span>
+              <span className="voucher-field-value">{voucher.serial}</span>
+            </div>
+            <div className="voucher-field" style={{ cursor: 'default' }}>
+              <span className="voucher-field-label">PIN</span>
+              <span className="voucher-field-value">{voucher.pin}</span>
+            </div>
           </div>
         )}
 
