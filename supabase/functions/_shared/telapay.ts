@@ -41,6 +41,23 @@ export function rSwitchFor(network: string): string {
   return 'MTN';
 }
 
+/**
+ * Work out which MoMo network a Ghana number belongs to, by prefix.
+ *
+ * This matters because r_switch must describe WHO IS PAYING, not what is
+ * being bought. Charging a Telecel MoMo wallet with r_switch "MTN" fails.
+ * It also lets products that have no network of their own — checkers — be
+ * paid for at all.
+ */
+export function networkFromPhone(phone: string): string {
+  const d = to233(phone);
+  const p3 = d.length >= 12 ? '0' + d.slice(3, 5) : '';
+  if (['024', '025', '053', '054', '055', '059'].includes(p3)) return 'MTN';
+  if (['020', '050'].includes(p3)) return 'VDF';
+  if (['026', '027', '056', '057'].includes(p3)) return 'ATG';
+  return '';
+}
+
 // Normalise a Ghana number to 233XXXXXXXXX.
 export function to233(p: string): string {
   const d = String(p || '').replace(/\D/g, '');

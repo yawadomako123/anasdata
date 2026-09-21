@@ -36,10 +36,13 @@ export default function AdminDashboard() {
       fetchAllOrders({ status: 'processing' }),
       fetchAllOrders({ status: 'paid' }),
     ]);
+    // Checkers are delivered automatically by SMS — they are never loaded by
+    // hand, so they do not belong in this queue.
+    const onlyData = (list) => (list || []).filter((o) => (o.product_type ?? 'data') === 'data');
     if (mine !== reqId.current) return; // a newer load already answered
     setLoading(false);
     if (!a.ok) return toast(`⚠️ ${a.error}`, 'error');
-    setOrders([...(a.orders || []), ...(b.ok ? b.orders : [])]);
+    setOrders([...onlyData(a.orders), ...(b.ok ? onlyData(b.orders) : [])]);
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);

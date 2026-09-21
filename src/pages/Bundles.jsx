@@ -71,11 +71,11 @@ export default function Bundles() {
     <>
       <div className="bundles-page-header">
         <div className="container">
-          <div className="bundles-page-title">Buy Data Bundles</div>
+          <div className="bundles-page-title">Top-Ups</div>
           <div className="bundles-page-sub">
             {loading
               ? 'Loading bundles…'
-              : <>Choose from <strong>{bundles.length}</strong> non-expiry bundles across MTN, Telecel &amp; AirtelTigo</>}
+              : <>Choose from <strong>{bundles.length}</strong> non-expiry options across MTN, Telecel &amp; AirtelTigo</>}
           </div>
         </div>
       </div>

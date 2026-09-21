@@ -10,6 +10,12 @@
 //  Only the latest keypress is sent, so menu state lives in ussd_sessions.
 //  Max 160 chars/screen; V1 line breaks use ^.
 //
+//  Sells two things:
+//   • data bundles — loaded by hand from the admin queue
+//   • checkers     — a PIN is reserved here and SMS'd once MoMo confirms.
+//     The PIN can NOT be shown on screen: the session ends at payment
+//     initiation, long before the customer approves in their MoMo app.
+//
 //  Deploy: supabase functions deploy frog-ussd --no-verify-jwt
 // ════════════════════════════════════════════════════════════
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -20,8 +26,9 @@ import {
   getBundle,
   type NetworkId,
 } from '../_shared/catalogue.ts';
+import { inStockVoucherTypes, getVoucherType, reserveVoucher, releaseVoucher } from '../_shared/vouchers.ts';
 import { notifyTelegram } from '../_shared/notify.ts';
-import { initiateCharge } from '../_shared/telapay.ts';
+import { initiateCharge, networkFromPhone } from '../_shared/telapay.ts';
 
 const PAGE_SIZE = 4;
 
@@ -45,10 +52,12 @@ const isGhPhone = (p: string) => /^0[235][0-9]{8}$/.test(p);
 const money = (n: number) => `GHS${n.toFixed(2)}`;
 
 interface SessionState {
-  step: 'home' | 'network' | 'bundle' | 'recipient' | 'enterNumber' | 'confirm';
+  step: 'home' | 'network' | 'bundle' | 'checker' | 'recipient' | 'enterNumber' | 'confirm';
+  product?: 'data' | 'checker';
   network?: NetworkId;
   page?: number;
   bundleId?: string;
+  voucherTypeId?: string;
   recipient?: string;
 }
 
@@ -64,9 +73,12 @@ async function clearState(db: SupabaseClient, id: string) {
 }
 
 function homeMenu(): string {
+  // Kept short on purpose: a USSD screen is capped at 160 characters, and the
+  // delivery-time caveat below only applies to data, so it lives in the data
+  // flow rather than greeting every caller.
   return (
-    'Welcome to Anasdata. The data is not instant. It takes between 5 minutes to 30 minutes to deliver.\n' +
-    '1. Buy data bundle\n2. Contact support'
+    'Welcome to Anasdata.\n' +
+    '1. Buy data bundle\n2. Buy checker\n3. Contact support'
   );
 }
 function contactScreen(): string {
@@ -74,7 +86,9 @@ function contactScreen(): string {
 }
 function networkMenu(): string {
   const lines = NETWORK_ORDER.map((id, i) => `${i + 1}. ${NETWORKS[id].name}`);
-  return `Select network\n${lines.join('\n')}`;
+  // Only data buyers reach this screen, so the loading delay is stated here.
+  // Checkers are instant and their flow never shows it.
+  return `Select network\n${lines.join('\n')}\nData loads in 5-30 mins`;
 }
 async function bundleMenu(db: SupabaseClient, net: NetworkId, page: number): Promise<string> {
   const all = await bundlesByNetwork(db, net);
@@ -87,8 +101,25 @@ async function bundleMenu(db: SupabaseClient, net: NetworkId, page: number): Pro
   nav.push('9.Back');
   return `${NETWORKS[net].name} data:\n${lines.join('\n')}\n${nav.join('  ')}`;
 }
-async function confirmScreen(db: SupabaseClient, bundleId: string, recipient: string): Promise<string> {
-  const b = await getBundle(db, bundleId);
+/** Only ever lists checkers that actually have stock. */
+async function checkerMenu(db: SupabaseClient, page: number): Promise<string> {
+  const all = await inStockVoucherTypes(db);
+  if (all.length === 0) return 'No checkers in stock right now.\n9. Back';
+  const start = page * PAGE_SIZE;
+  const slice = all.slice(start, start + PAGE_SIZE);
+  const lines = slice.map((t, i) => `${i + 1}. ${t.name} ${money(t.price)}`);
+  const nav: string[] = [];
+  if (start + PAGE_SIZE < all.length) nav.push('0.More');
+  nav.push('9.Back');
+  return `Checkers:\n${lines.join('\n')}\n${nav.join('  ')}`;
+}
+async function confirmScreen(db: SupabaseClient, state: SessionState, recipient: string): Promise<string> {
+  if (state.product === 'checker') {
+    const t = await getVoucherType(db, state.voucherTypeId!);
+    if (!t) return 'Checker unavailable. Dial again.';
+    return `${t.name}\nPIN to: ${recipient}\nPay ${money(t.price)}\n1. Confirm\n2. Cancel`;
+  }
+  const b = await getBundle(db, state.bundleId!);
   if (!b) return 'Bundle unavailable. Dial again.';
   return `${b.data} ${NETWORKS[b.network].name}\nTo: ${recipient}\nPay ${money(b.price)}\n1. Confirm\n2. Cancel`;
 }
@@ -175,24 +206,28 @@ Deno.serve(async (req) => {
     const state = await loadState(db, sessionid);
     if (!state) return reply(body, 'Session expired. Please dial again.', false);
 
-    // home: buy or contact support
+    // home: buy data, buy checker, or contact support
     if (state.step === 'home') {
       if (userdata === '1') {
-        await saveState(db, sessionid, { step: 'network' });
+        await saveState(db, sessionid, { step: 'network', product: 'data' });
         return reply(body, networkMenu(), true);
       }
       if (userdata === '2') {
+        await saveState(db, sessionid, { step: 'checker', product: 'checker', page: 0 });
+        return reply(body, await checkerMenu(db, 0), true);
+      }
+      if (userdata === '3') {
         await clearState(db, sessionid);
         return reply(body, contactScreen(), false);
       }
       return reply(body, `Invalid.\n${homeMenu()}`, true);
     }
 
-    // choose network
+    // choose network (data bundles only)
     if (state.step === 'network') {
       const net = NETWORK_ORDER[parseInt(userdata, 10) - 1];
       if (!net) return reply(body, `Invalid.\n${networkMenu()}`, true);
-      await saveState(db, sessionid, { step: 'bundle', network: net, page: 0 });
+      await saveState(db, sessionid, { step: 'bundle', product: 'data', network: net, page: 0 });
       return reply(body, await bundleMenu(db, net, 0), true);
     }
 
@@ -202,7 +237,7 @@ Deno.serve(async (req) => {
       const all = await bundlesByNetwork(db, net);
       const page = state.page ?? 0;
       if (userdata === '9') {
-        await saveState(db, sessionid, { step: 'network' });
+        await saveState(db, sessionid, { step: 'network', product: 'data' });
         return reply(body, networkMenu(), true);
       }
       if (userdata === '0') {
@@ -215,17 +250,45 @@ Deno.serve(async (req) => {
       if (!n || n < 1 || n > PAGE_SIZE || !chosen) {
         return reply(body, `Invalid.\n${await bundleMenu(db, net, page)}`, true);
       }
-      await saveState(db, sessionid, { step: 'recipient', bundleId: chosen.id, network: net });
+      await saveState(db, sessionid, {
+        step: 'recipient', product: 'data', bundleId: chosen.id, network: net,
+      });
       const own = toLocal(phone);
       return reply(body, `${chosen.data} ${money(chosen.price)}\nLoad to:\n1. This No (${own})\n2. Other No`, true);
+    }
+
+    // choose checker (paginated)
+    if (state.step === 'checker') {
+      const all = await inStockVoucherTypes(db);
+      const page = state.page ?? 0;
+      if (userdata === '9') {
+        await saveState(db, sessionid, { step: 'home' });
+        return reply(body, homeMenu(), true);
+      }
+      if (userdata === '0') {
+        const nextPage = (page + 1) * PAGE_SIZE < all.length ? page + 1 : page;
+        await saveState(db, sessionid, { ...state, page: nextPage });
+        return reply(body, await checkerMenu(db, nextPage), true);
+      }
+      const n = parseInt(userdata, 10);
+      const chosen = all[page * PAGE_SIZE + (n - 1)];
+      if (!n || n < 1 || n > PAGE_SIZE || !chosen) {
+        return reply(body, `Invalid.\n${await checkerMenu(db, page)}`, true);
+      }
+      await saveState(db, sessionid, {
+        step: 'recipient', product: 'checker', voucherTypeId: chosen.id,
+      });
+      const own = toLocal(phone);
+      return reply(body, `${chosen.name} ${money(chosen.price)}\nSMS PIN to:\n1. This No (${own})\n2. Other No`, true);
     }
 
     // whose number
     if (state.step === 'recipient') {
       if (userdata === '1') {
         const own = toLocal(phone);
-        await saveState(db, sessionid, { ...state, step: 'confirm', recipient: own });
-        return reply(body, await confirmScreen(db, state.bundleId!, own), true);
+        const next: SessionState = { ...state, step: 'confirm', recipient: own };
+        await saveState(db, sessionid, next);
+        return reply(body, await confirmScreen(db, next, own), true);
       }
       if (userdata === '2') {
         await saveState(db, sessionid, { ...state, step: 'enterNumber' });
@@ -238,8 +301,9 @@ Deno.serve(async (req) => {
     if (state.step === 'enterNumber') {
       const rec = userdata.replace(/\D/g, '');
       if (!isGhPhone(rec)) return reply(body, 'Invalid. Enter 10-digit No:', true);
-      await saveState(db, sessionid, { ...state, step: 'confirm', recipient: rec });
-      return reply(body, await confirmScreen(db, state.bundleId!, rec), true);
+      const next: SessionState = { ...state, step: 'confirm', recipient: rec };
+      await saveState(db, sessionid, next);
+      return reply(body, await confirmScreen(db, next, rec), true);
     }
 
     // confirm
@@ -248,22 +312,48 @@ Deno.serve(async (req) => {
         await clearState(db, sessionid);
         return reply(body, 'Order cancelled.', false);
       }
-      const bundle = await getBundle(db, state.bundleId!);
-      if (!bundle) {
-        await clearState(db, sessionid);
-        return reply(body, 'Bundle unavailable. Dial again.', false);
-      }
+
+      const isChecker = state.product === 'checker';
       const recipient = state.recipient!;
+
+      // Resolve the product and its price server-side.
+      let price: number;
+      let label: string;
+      let orderRow: Record<string, unknown>;
+
+      if (isChecker) {
+        const t = await getVoucherType(db, state.voucherTypeId!);
+        if (!t) {
+          await clearState(db, sessionid);
+          return reply(body, 'Checker unavailable. Dial again.', false);
+        }
+        price = t.price;
+        label = t.name;
+        orderRow = {
+          product_type: 'checker', voucher_type_id: t.id,
+          bundle_id: null, bundle_name: t.name, network: null, data: null,
+        };
+      } else {
+        const b = await getBundle(db, state.bundleId!);
+        if (!b) {
+          await clearState(db, sessionid);
+          return reply(body, 'Bundle unavailable. Dial again.', false);
+        }
+        price = b.price;
+        label = b.name;
+        orderRow = {
+          product_type: 'data', voucher_type_id: null,
+          bundle_id: b.id, bundle_name: b.name, network: b.network, data: b.data,
+        };
+      }
+
       const reference = makeTxnId();
       const { data: inserted } = await db
         .from('orders')
         .insert({
+          ...orderRow,
           reference,
-          bundle_id: bundle.id,
-          bundle_name: bundle.name,
-          network: bundle.network,
-          data: bundle.data,
-          price: bundle.price,
+          price,
           phone: recipient,
           email: null,
           status: 'pending',
@@ -275,6 +365,16 @@ Deno.serve(async (req) => {
         .select()
         .single();
 
+      // Hold the PIN BEFORE charging — never take money we cannot fulfil.
+      if (isChecker && inserted) {
+        const held = await reserveVoucher(db, String(inserted.voucher_type_id), String(inserted.id));
+        if (!held) {
+          await db.from('orders').update({ status: 'failed' }).eq('id', inserted.id);
+          await clearState(db, sessionid);
+          return reply(body, 'That checker just sold out. You have not been charged.', false);
+        }
+      }
+
       await clearState(db, sessionid);
 
       // The theTeller MoMo charge (and Telegram ping) are slow external calls.
@@ -283,15 +383,20 @@ Deno.serve(async (req) => {
       // PIN prompt out-of-band, so ending the USSD session here is fine.
       const background = (async () => {
         try {
-          await initiateCharge({
+          const charge = await initiateCharge({
             transactionId: reference,
-            amountGhs: bundle.price,
+            amountGhs: price,
             subscriberNumber: phone,
-            network,
-            desc: `${bundle.name} to ${recipient}`,
+            network: network || networkFromPhone(phone),
+            desc: `${label} to ${recipient}`,
             reference,
             callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/telapay-callback`,
           });
+          if (!charge.ok && inserted) {
+            // Charge never started — put the PIN back rather than stranding it.
+            if (isChecker) await releaseVoucher(db, String(inserted.id));
+            await db.from('orders').update({ status: 'failed' }).eq('id', inserted.id);
+          }
         } catch { /* order stays pending; admin can reconcile */ }
         try {
           if (inserted) await notifyTelegram(inserted);
@@ -303,9 +408,12 @@ Deno.serve(async (req) => {
           .EdgeRuntime?.waitUntil?.(background);
       } catch { /* not available locally — fine */ }
 
+      const tail = isChecker
+        ? `PIN is sent by SMS to ${recipient} after payment.`
+        : `${label} loads to ${recipient} after payment.`;
       return reply(
         body,
-        `To pay ${money(bundle.price)}: approve in your MoMo app, or dial *170# then Approvals. ${bundle.data} loads to ${recipient} after payment. Ref ${reference}`,
+        `To pay ${money(price)}: approve in your MoMo app, or dial *170# then Approvals. ${tail} Ref ${reference}`,
         false
       );
     }

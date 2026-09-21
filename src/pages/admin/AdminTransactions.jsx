@@ -96,6 +96,7 @@ export default function AdminTransactions() {
               </thead>
               <tbody>
                 {rows.map((o) => {
+                  const isChecker = (o.product_type ?? 'data') === 'checker';
                   const net = NETWORKS[o.network];
                   const s = STATUS[o.status] || STATUS.pending;
                   return (
@@ -104,7 +105,13 @@ export default function AdminTransactions() {
                       <td title={o.channel === 'ussd' ? 'USSD' : 'Website'}>{o.channel === 'ussd' ? '📟' : '🌐'}</td>
                       <td className="mono strong">{o.phone}</td>
                       <td>{o.bundle_name}</td>
-                      <td><span className={`history-network-pill ${o.network}`}>{net ? net.name : o.network}</span></td>
+                      <td>
+                        {isChecker ? (
+                          <span className="history-network-pill checker">Checker</span>
+                        ) : (
+                          <span className={`history-network-pill ${o.network}`}>{net ? net.name : o.network}</span>
+                        )}
+                      </td>
                       <td className="strong">{cedis(o.price)}</td>
                       <td>
                         <span className={`history-status-badge ${s.cls}`}>{s.text}</span>

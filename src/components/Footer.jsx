@@ -10,13 +10,14 @@ export default function Footer() {
             <span className="nav-logo-text">Anasdata</span>
           </div>
           <p>
-            Buy affordable non-expiry MTN, Telecel &amp; AirtelTigo data bundles. Fast, secure checkout
-            powered by PaySwitch.
+            Results checkers delivered by SMS, plus non-expiry top-ups for every major network.
+            Fast, secure Mobile Money checkout.
           </p>
         </div>
         <div>
-          <div className="footer-col-title">Networks</div>
+          <div className="footer-col-title">Shop</div>
           <div className="footer-links">
+            <Link className="footer-link" to="/checkers">Results Checkers</Link>
             <Link className="footer-link" to="/bundles?network=mtn">MTN Ghana</Link>
             <Link className="footer-link" to="/bundles?network=telecel">Telecel Ghana</Link>
             <Link className="footer-link" to="/bundles?network=airteltigo">AirtelTigo Ghana</Link>

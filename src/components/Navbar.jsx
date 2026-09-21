@@ -32,10 +32,11 @@ export default function Navbar() {
 
       <div className={`nav-links ${menuOpen ? 'open' : ''}`}>
         <NavLink to="/" end className="nav-link" onClick={close}>Home</NavLink>
-        <NavLink to="/bundles" className="nav-link" onClick={close}>Buy Bundles</NavLink>
+        <NavLink to="/checkers" className="nav-link" onClick={close}>Checkers</NavLink>
+        <NavLink to="/bundles" className="nav-link" onClick={close}>Top-Ups</NavLink>
         <NavLink to="/track" className="nav-link" onClick={close}>Track Order</NavLink>
-        <button className="nav-cta" onClick={() => { navigate('/bundles'); close(); }}>
-          Get Data Now
+        <button className="nav-cta" onClick={() => { navigate('/checkers'); close(); }}>
+          Buy a Checker
         </button>
       </div>
 

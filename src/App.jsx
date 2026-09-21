@@ -4,6 +4,7 @@ import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Home from './pages/Home.jsx';
 import Bundles from './pages/Bundles.jsx';
+import Checkers from './pages/Checkers.jsx';
 import Checkout from './pages/Checkout.jsx';
 import Success from './pages/Success.jsx';
 import TrackOrder from './pages/TrackOrder.jsx';
@@ -12,6 +13,7 @@ import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 import AdminBundles from './pages/admin/AdminBundles.jsx';
 import AdminTransactions from './pages/admin/AdminTransactions.jsx';
 import AdminCustomers from './pages/admin/AdminCustomers.jsx';
+import AdminCheckers from './pages/admin/AdminCheckers.jsx';
 import RequireAuth from './pages/admin/RequireAuth.jsx';
 
 export default function App() {
@@ -31,7 +33,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/bundles" element={<Bundles />} />
+          <Route path="/checkers" element={<Checkers />} />
           <Route path="/checkout/:bundleId" element={<Checkout />} />
+          <Route path="/checkout/checker/:voucherTypeId" element={<Checkout />} />
           <Route path="/success" element={<Success />} />
           <Route path="/track" element={<TrackOrder />} />
 
@@ -65,6 +69,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <AdminBundles />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/checkers"
+            element={
+              <RequireAuth>
+                <AdminCheckers />
               </RequireAuth>
             }
           />

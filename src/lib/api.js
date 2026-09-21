@@ -22,16 +22,18 @@ async function readFnError(error) {
  *
  * @returns {Promise<{ok: boolean, transactionId?: string, error?: string}>}
  */
-export async function initiatePaySwitchOrder({ bundleId, phone, payerPhone }) {
+export async function initiatePaySwitchOrder({ bundleId, voucherTypeId, phone, payerPhone }) {
   if (!isSupabaseReady) return { ok: false, error: NOT_READY };
 
   const { data, error } = await supabase.functions.invoke('payswitch-initiate', {
-    body: { bundleId, phone, payerPhone },
+    body: { bundleId, voucherTypeId, phone, payerPhone },
   });
 
   if (error) return { ok: false, error: await readFnError(error) };
   if (data?.error) return { ok: false, error: data.error };
-  return { ok: true, transactionId: data.transaction_id };
+  // deliveryToken is the only way to read the order back (and, for a checker,
+  // its PIN). The transaction id is guessable, so it grants nothing on its own.
+  return { ok: true, transactionId: data.transaction_id, deliveryToken: data.delivery_token };
 }
 
 /**
@@ -40,15 +42,21 @@ export async function initiatePaySwitchOrder({ bundleId, phone, payerPhone }) {
  *
  * @returns {Promise<{ok: boolean, status?: string, order?: object, error?: string}>}
  */
-export async function verifyPaySwitchPayment(transactionId) {
+export async function verifyPaySwitchPayment(transactionId, deliveryToken) {
   if (!isSupabaseReady) return { ok: false, error: NOT_READY };
 
   const { data, error } = await supabase.functions.invoke('payswitch-verify', {
-    body: { transactionId },
+    body: { transactionId, deliveryToken },
   });
 
   if (error) return { ok: false, error: await readFnError(error) };
-  return { ok: true, status: data.status, order: data.order, error: data.error };
+  return {
+    ok: true,
+    status: data.status,
+    order: data.order,
+    voucher: data.voucher,
+    error: data.error,
+  };
 }
 
 /**

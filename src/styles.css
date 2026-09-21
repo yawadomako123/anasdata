@@ -26,6 +26,8 @@
   --mtn-text: #1a1a1a;
   --airteltigo: #0057b8;
   --telecel: #d60f22;
+  /* Checkers are not a network — their own colour keeps them distinct. */
+  --checker: #7c5cff;
 
   --radius: 14px;
   --radius-md: 10px;
@@ -238,6 +240,8 @@ input, select { font-family: inherit; }
 .bundle-card.mtn { background: #ffcc00; border-color: rgba(0, 0, 0, 0.18); color: #1a1a1a; }
 .bundle-card.telecel { background: #e2001a; border-color: rgba(0, 0, 0, 0.14); color: #fff; }
 .bundle-card.airteltigo { background: #0057b8; border-color: rgba(0, 0, 0, 0.14); color: #fff; }
+.bundle-card.checker { background: #5b3fd6; border-color: rgba(0, 0, 0, 0.14); color: #fff; }
+.bundle-card.sold-out { opacity: 0.55; }
 .bundle-card.mtn:hover, .bundle-card.telecel:hover, .bundle-card.airteltigo:hover { box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4); }
 .bundle-card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 18px; }
 .bundle-network-pill {
@@ -246,6 +250,7 @@ input, select { font-family: inherit; }
 .bundle-network-pill.mtn { background: #1a1a1a; color: #ffcc00; }
 .bundle-network-pill.telecel { background: #fff; color: #e2001a; }
 .bundle-network-pill.airteltigo { background: #fff; color: #0057b8; }
+.bundle-network-pill.checker { background: #fff; color: #5b3fd6; }
 .bundle-badge {
   padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   background: var(--accent-soft); color: var(--accent);
@@ -256,6 +261,7 @@ input, select { font-family: inherit; }
 .bundle-data.mtn { color: #1a1a1a; }
 .bundle-data.telecel { color: #fff; }
 .bundle-data.airteltigo { color: #fff; }
+.bundle-data.checker { color: #fff; }
 /* Contrast for text/borders inside the coloured cards */
 .bundle-card.mtn .bundle-name,
 .bundle-card.mtn .bundle-price-currency,
@@ -281,6 +287,15 @@ input, select { font-family: inherit; }
 .bundle-card.airteltigo .bundle-price-amount { color: #fff; }
 .bundle-card.airteltigo .bundle-meta { border-color: rgba(255, 255, 255, 0.25); }
 .bundle-card.airteltigo .bundle-badge { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.bundle-card.checker .bundle-name,
+.bundle-card.checker .bundle-price-currency,
+.bundle-card.checker .bundle-price-per,
+.bundle-card.checker .muted,
+.bundle-card.checker .bundle-meta-label { color: rgba(255, 255, 255, 0.82); }
+.bundle-card.checker .bundle-meta-value,
+.bundle-card.checker .bundle-price-amount { color: #fff; }
+.bundle-card.checker .bundle-meta { border-color: rgba(255, 255, 255, 0.25); }
+.bundle-card.checker .bundle-badge { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .bundle-name { color: var(--text-secondary); font-size: 14px; margin-top: 2px; margin-bottom: 16px; }
 .bundle-meta { display: flex; gap: 24px; padding: 14px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 18px; }
 .bundle-meta-item { display: flex; flex-direction: column; gap: 2px; }
@@ -302,6 +317,9 @@ input, select { font-family: inherit; }
 .btn-buy.telecel:hover { background: #ffe3e6; }
 .btn-buy.airteltigo { background: #fff; color: #0057b8; }
 .btn-buy.airteltigo:hover { background: #dbeafe; }
+.btn-buy.checker { background: #fff; color: #5b3fd6; }
+.btn-buy.checker:hover { background: #ece7ff; }
+.btn-buy:disabled { opacity: 0.6; cursor: default; }
 
 /* ─── Bundles page ─── */
 .bundles-page-header { padding: 44px 0 26px; border-bottom: 1px solid var(--border); }
@@ -347,11 +365,13 @@ input, select { font-family: inherit; }
 .order-summary-card.mtn::before { background: var(--mtn); }
 .order-summary-card.airteltigo::before { background: var(--airteltigo); }
 .order-summary-card.telecel::before { background: var(--telecel); }
+.order-summary-card.checker::before { background: var(--checker); }
 .order-summary-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-bottom: 14px; }
 .order-bundle-info { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .data-amount { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
 .data-amount.mtn { color: #ffcc00; }
 .data-amount.telecel { color: #ff4d5e; }
+.data-amount.checker { color: #a48bff; }
 .bundle-name-full { color: var(--text-secondary); font-size: 14px; margin-top: 2px; }
 .order-bundle-right { text-align: right; }
 .price-currency { font-size: 12px; color: var(--text-muted); }
@@ -436,6 +456,7 @@ input, select { font-family: inherit; }
 .history-network-pill.mtn { background: rgba(245, 197, 24, 0.16); color: #e7b70f; }
 .history-network-pill.airteltigo { background: rgba(0, 87, 184, 0.18); color: #6ea8ff; }
 .history-network-pill.telecel { background: rgba(214, 15, 34, 0.16); color: #ff6070; }
+.history-network-pill.checker { background: rgba(124, 92, 255, 0.18); color: #a48bff; }
 .history-status-badge { padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .history-status-badge.success { background: rgba(47, 174, 97, 0.14); color: #52c07f; }
 .history-status-badge.pending { background: rgba(217, 154, 43, 0.14); color: #e0b256; }
@@ -557,6 +578,7 @@ a.footer-link:hover { color: var(--text); }
 .net-card.mtn { background: #ffcc00; }
 .net-card.telecel { background: #e2001a; color: #fff; }
 .net-card.airteltigo { background: #0057b8; color: #fff; }
+.net-card.checker { background: #5b3fd6; color: #fff; }
 .net-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .net-card-count {
   flex-shrink: 0; min-width: 40px; height: 40px; padding: 0 11px;
@@ -565,6 +587,7 @@ a.footer-link:hover { color: var(--text); }
 }
 .net-card.telecel .net-card-count { background: #fff; color: #e2001a; }
 .net-card.airteltigo .net-card-count { background: #fff; color: #0057b8; }
+.net-card.checker .net-card-count { background: #fff; color: #5b3fd6; }
 .net-card-name { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
 .net-card-sub { font-size: 13px; margin-top: 4px; opacity: 0.75; }
 .net-card-cta { margin-top: 22px; font-weight: 700; font-size: 15px; }
@@ -609,4 +632,36 @@ a.footer-link:hover { color: var(--text); }
 @media (max-width: 480px) {
   .hero-stats { grid-template-columns: 1fr 1fr; }
   .footer-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── Checker PIN (success page) ─── */
+.voucher-card {
+  background: linear-gradient(135deg, #5b3fd6, #7c5cff);
+  border-radius: var(--radius); padding: 20px; margin-bottom: 22px; text-align: left;
+}
+.voucher-card.pending { background: var(--surface-2); border: 1px solid var(--border); }
+.voucher-card-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.75); margin-bottom: 14px; font-weight: 700;
+}
+.voucher-card.pending .voucher-card-label { color: var(--text-muted); }
+.voucher-field {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px;
+  width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.14); border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.2); cursor: pointer; transition: background 0.15s;
+}
+.voucher-field:last-child { margin-bottom: 0; }
+.voucher-field:hover { background: rgba(255, 255, 255, 0.22); }
+.voucher-field-label {
+  grid-column: 1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.78);
+}
+.voucher-field-value {
+  grid-column: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0.04em; word-break: break-all;
+}
+.voucher-copy {
+  grid-column: 2; grid-row: 1 / span 2; font-size: 12px; font-weight: 600;
+  color: rgba(255, 255, 255, 0.85); white-space: nowrap;
 }

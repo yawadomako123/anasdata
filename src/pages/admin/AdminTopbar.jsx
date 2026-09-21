@@ -7,6 +7,7 @@ const LINKS = [
   { to: '/admin/transactions', label: 'Transactions' },
   { to: '/admin/customers', label: 'Numbers' },
   { to: '/admin/bundles', label: 'Bundles' },
+  { to: '/admin/checkers', label: 'Checkers' },
 ];
 
 export default function AdminTopbar({ onRefresh }) {

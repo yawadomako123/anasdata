@@ -1,12 +1,20 @@
 // ════════════════════════════════════════════════════════════
-//  payswitch-verify  —  confirm a TelaPay charge and flip order to PAID.
-//  Used by the web checkout's polling AND by telapay-callback.
+//  payswitch-verify  —  confirm a TelaPay charge and finish the order.
+//  The web checkout polls this; it is also the backstop for when the
+//  telapay-callback webhook never arrives.
+//
+//  PRIVACY: this endpoint is public and the transaction id is mostly a
+//  timestamp, so it is guessable. It therefore returns ONLY a status
+//  unless the caller also presents the order's delivery_token — the
+//  random handle handed to the buying browser at initiation. Order
+//  details (and a checker's PIN) require that token.
 //
 //  Deploy: supabase functions deploy payswitch-verify
 // ════════════════════════════════════════════════════════════
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { notifyTelegram } from '../_shared/notify.ts';
 import { checkStatus } from '../_shared/telapay.ts';
+import { confirmAndFulfil } from '../_shared/fulfil.ts';
+import { releaseVoucher } from '../_shared/vouchers.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -16,12 +24,37 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
+/** Only ever hand back fields the buyer already knows. Never payer_phone,
+ *  email, ids, payment_ref or delivery_token. */
+const publicOrder = (o: Record<string, unknown>) => ({
+  reference: o.reference,
+  product_type: o.product_type ?? 'data',
+  bundle_name: o.bundle_name,
+  data: o.data,
+  network: o.network,
+  phone: o.phone,
+  price: o.price,
+  status: o.status,
+  created_at: o.created_at,
+  delivered_at: o.delivered_at ?? null,
+});
+
+/** Length-safe compare so the token cannot be probed byte by byte. */
+function tokenMatches(supplied: unknown, actual: unknown): boolean {
+  const a = String(supplied ?? '');
+  const b = String(actual ?? '');
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const { transactionId } = await req.json();
+    const { transactionId, deliveryToken } = await req.json();
     if (!transactionId) return json({ error: 'Missing transactionId.' }, 400);
 
     const supabase = createClient(
@@ -30,38 +63,56 @@ Deno.serve(async (req) => {
     );
 
     const { data: order } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('payment_ref', transactionId)
-      .maybeSingle();
+      .from('orders').select('*').eq('payment_ref', transactionId).maybeSingle();
     if (!order) return json({ error: 'Order not found.' }, 404);
-    // Already confirmed (a paid order goes straight to 'processing' — the load queue).
+
+    const trusted = tokenMatches(deliveryToken, order.delivery_token);
+
+    // Every reply has the same shape: status is public, detail is not.
+    const respond = async (
+      status: string,
+      o: Record<string, unknown>,
+      extra: Record<string, unknown> = {}
+    ) => {
+      if (!trusted) return json({ status, ...extra });
+      const body: Record<string, unknown> = { status, order: publicOrder(o), ...extra };
+      // A checker PIN is only ever released to the holder of the token.
+      if (o.product_type === 'checker' && (o.status === 'done' || o.status === 'processing')) {
+        const { data: v } = await supabase
+          .from('vouchers').select('serial, pin').eq('order_id', o.id).maybeSingle();
+        if (v) body.voucher = { serial: v.serial, pin: v.pin };
+      }
+      return json(body);
+    };
+
     if (order.status === 'processing' || order.status === 'done') {
-      return json({ status: 'paid', order });
+      return await respond('paid', order);
+    }
+    if (order.status === 'failed') {
+      return await respond('failed', order, { error: 'Payment was not completed.' });
     }
 
     const result = await checkStatus(transactionId);
 
-    if (result.code === '101') return json({ status: 'pending', order });
+    if (result.code === '101') return await respond('pending', order);
+
     if (result.code !== '000') {
-      return json({ status: 'failed', error: `Payment not successful (${result.status ?? result.code}).` }, 200);
+      if (order.product_type === 'checker') await releaseVoucher(supabase, String(order.id));
+      await supabase.from('orders').update({ status: 'failed' }).eq('id', order.id);
+      return await respond('failed', order, {
+        error: `Payment not successful (${result.status ?? result.code}).`,
+      });
     }
 
-    // Success. Confirm the amount (TelaPay's original_amount is pre-surcharge).
+    // Confirm the amount (TelaPay's original_amount is pre-surcharge).
     if (result.originalAmount != null && Math.abs(result.originalAmount - Number(order.price)) > 0.01) {
-      return json({ status: 'failed', error: 'Amount mismatch — rejected.' }, 200);
+      if (order.product_type === 'checker') await releaseVoucher(supabase, String(order.id));
+      await supabase.from('orders').update({ status: 'failed' }).eq('id', order.id);
+      return await respond('failed', order, { error: 'Amount mismatch — rejected.' });
     }
 
-    // Confirmed payment → straight into the load queue as 'processing'.
-    const { data: updated } = await supabase
-      .from('orders')
-      .update({ status: 'processing' })
-      .eq('id', order.id)
-      .select()
-      .single();
-
-    if (updated) await notifyTelegram(updated);
-    return json({ status: 'paid', order: updated ?? order });
+    const { order: updated } = await confirmAndFulfil(supabase, order);
+    return await respond('paid', updated);
   } catch (err) {
     return json({ error: (err as Error).message ?? 'Unexpected error.' }, 500);
   }

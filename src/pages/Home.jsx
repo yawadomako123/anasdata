@@ -2,28 +2,26 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { NETWORKS } from '../lib/data';
 import { fetchBundles } from '../lib/bundles';
-import BundleCard from '../components/BundleCard.jsx';
+import { fetchCheckers } from '../lib/checkers';
+import { cedis } from '../lib/format';
 
 export default function Home() {
   const navigate = useNavigate();
   const [bundles, setBundles] = useState([]);
+  const [checkers, setCheckers] = useState([]);
 
   useEffect(() => {
     let alive = true;
     fetchBundles().then((res) => {
       if (alive && res.ok) setBundles(res.bundles);
     });
+    fetchCheckers().then((res) => {
+      if (alive && res.ok) setCheckers(res.checkers.filter((c) => c.inStock));
+    });
     return () => {
       alive = false;
     };
   }, []);
-
-  // Featured = badged bundles first, then fill up to 6.
-  const featured = useMemo(() => {
-    const badged = bundles.filter((b) => b.badge);
-    const rest = bundles.filter((b) => !b.badge);
-    return [...badged, ...rest].slice(0, 6);
-  }, [bundles]);
 
   const countByNetwork = useMemo(() => {
     const m = { mtn: 0, telecel: 0, airteltigo: 0 };
@@ -31,7 +29,11 @@ export default function Home() {
     return m;
   }, [bundles]);
 
-  const cheapest = useMemo(
+  const cheapestChecker = useMemo(
+    () => (checkers.length ? Math.min(...checkers.map((c) => c.price)) : null),
+    [checkers]
+  );
+  const cheapestBundle = useMemo(
     () => (bundles.length ? Math.min(...bundles.map((b) => b.price)) : null),
     [bundles]
   );
@@ -42,17 +44,17 @@ export default function Home() {
       <section className="hero">
         <div className="hero-content">
           <h1>
-            Buy Data Bundles
+            Result Checkers
             <br />
-            <span className="highlight">Instantly in Ghana</span>
+            <span className="highlight">Delivered Instantly</span>
           </h1>
           <p>
-            Pick a bundle for MTN, Telecel or AirtelTigo, pay securely with PaySwitch, and we
-            load it to your number. Simple.
+            Pay with Mobile Money and your serial and PIN arrive by SMS in seconds. Airtime and
+            data top-ups are available too.
           </p>
           <div className="hero-actions">
-            <button className="btn-primary" onClick={() => navigate('/bundles')}>
-              <span>Browse Bundles</span>
+            <button className="btn-primary" onClick={() => navigate('/checkers')}>
+              <span>Browse Checkers</span>
               <span>→</span>
             </button>
             <Link className="btn-secondary" to="/track">
@@ -66,20 +68,94 @@ export default function Home() {
           )}
         </div>
         <div className="hero-stats">
-          <Stat value={bundles.length ? `${bundles.length}` : '—'} label="Bundle Options" />
-          <Stat value="3" label="Networks Covered" />
-          <Stat value={cheapest != null ? `GHS ${cheapest.toFixed(2)}` : '—'} label="Starting From" />
-          <Stat value="Non-expiry" label="Data Bundles" />
+          <Stat value={checkers.length ? `${checkers.length}` : '—'} label="Checkers Available" />
+          <Stat value="Instant" label="SMS Delivery" />
+          <Stat
+            value={cheapestChecker != null ? `GHS ${cheapestChecker.toFixed(2)}` : '—'}
+            label="Starting From"
+          />
+          <Stat value="MoMo" label="Pay With" />
         </div>
       </section>
 
-      {/* Networks */}
+      {/* Checkers — the headline product */}
+      {checkers.length > 0 && (
+        <section className="featured-section">
+          <div className="container">
+            <div className="section-header">
+              <span className="section-tag">Checkers</span>
+              <h2 className="section-title">Get Your Results Checker</h2>
+              <p className="section-sub">Paid for by Mobile Money, sent to your phone by SMS</p>
+            </div>
+            <div className="bundles-grid">
+              {checkers.slice(0, 6).map((c) => (
+                <div key={c.id} className="bundle-card checker">
+                  <div className="bundle-card-header">
+                    <span className="bundle-network-pill checker">Checker</span>
+                  </div>
+                  <div className="bundle-data checker">🎫</div>
+                  <div className="bundle-name">{c.name}</div>
+                  <div className="bundle-meta">
+                    <div className="bundle-meta-item">
+                      <span className="bundle-meta-label">Delivery</span>
+                      <span className="bundle-meta-value">SMS</span>
+                    </div>
+                    <div className="bundle-meta-item">
+                      <span className="bundle-meta-label">Availability</span>
+                      <span className="bundle-meta-value">In stock</span>
+                    </div>
+                  </div>
+                  <div className="bundle-footer">
+                    <div className="bundle-price">
+                      <span className="bundle-price-currency">GHS</span>
+                      <span className="bundle-price-amount">{c.price.toFixed(2)}</span>
+                    </div>
+                    <button className="btn-buy checker" onClick={() => navigate(`/checkout/checker/${c.id}`)}>
+                      Buy {cedis(c.price)}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 40 }}>
+              <button className="btn-primary" style={{ margin: '0 auto' }} onClick={() => navigate('/checkers')}>
+                View All Checkers →
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* How it works */}
+      <section className="how-section">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">How It Works</span>
+            <h2 className="section-title">Three Simple Steps</h2>
+            <p className="section-sub">From choosing to done — in under a minute</p>
+          </div>
+          <div className="steps-grid">
+            <Step n="1" title="Choose What You Need"
+              desc="Pick a results checker, or a top-up if that's what you're after." />
+            <Step n="2" title="Pay Securely"
+              desc="Enter your number and approve the Mobile Money prompt on your phone." />
+            <Step n="3" title="Get It Instantly"
+              desc="Checker PINs arrive by SMS straight away. Top-ups follow shortly after." />
+          </div>
+        </div>
+      </section>
+
+      {/* Top-ups — available, but not the headline */}
       <section className="networks-section">
         <div className="container">
           <div className="section-header">
-            <span className="section-tag">Networks</span>
-            <h2 className="section-title">Pick Your Network</h2>
-            <p className="section-sub">We support all major telecom providers in Ghana</p>
+            <span className="section-tag">Also available</span>
+            <h2 className="section-title">Top-Ups</h2>
+            <p className="section-sub">
+              {cheapestBundle != null
+                ? `Non-expiry top-ups for all major networks, from ${cedis(cheapestBundle)}`
+                : 'Non-expiry top-ups for all major networks'}
+            </p>
           </div>
           <div className="networks-grid">
             {Object.values(NETWORKS).map((net) => (
@@ -92,7 +168,7 @@ export default function Home() {
                 <div className="network-name">{net.fullName}</div>
                 <div className="network-tagline">{net.tagline}</div>
                 <div className={`network-bundle-count ${net.id}`}>
-                  <span>{countByNetwork[net.id]} bundles available</span>
+                  <span>{countByNetwork[net.id]} options available</span>
                 </div>
                 <div className="network-arrow">→</div>
               </Link>
@@ -100,48 +176,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* How it works */}
-      <section className="how-section">
-        <div className="container">
-          <div className="section-header">
-            <span className="section-tag">How It Works</span>
-            <h2 className="section-title">Get Data in 3 Simple Steps</h2>
-            <p className="section-sub">From browsing to connected — in under a minute</p>
-          </div>
-          <div className="steps-grid">
-            <Step n="1" title="Choose a Bundle"
-              desc="Browse non-expiry bundles for MTN, Telecel and AirtelTigo. Filter by network and size." />
-            <Step n="2" title="Pay Securely"
-              desc="Enter the number to top up and pay with PaySwitch — Mobile Money, Visa, or Mastercard." />
-            <Step n="3" title="We Load It"
-              desc="Your order reaches us and we load the bundle to your number, then you get a confirmation." />
-          </div>
-        </div>
-      </section>
-
-      {/* Featured */}
-      {featured.length > 0 && (
-        <section className="featured-section">
-          <div className="container">
-            <div className="section-header">
-              <span className="section-tag">Featured</span>
-              <h2 className="section-title">Most Popular Bundles</h2>
-              <p className="section-sub">Ghana's favourite data deals, hand-picked for you</p>
-            </div>
-            <div className="bundles-grid">
-              {featured.map((b) => (
-                <BundleCard key={b.id} bundle={b} />
-              ))}
-            </div>
-            <div style={{ textAlign: 'center', marginTop: 40 }}>
-              <button className="btn-primary" style={{ margin: '0 auto' }} onClick={() => navigate('/bundles')}>
-                View All Bundles →
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
     </>
   );
 }
