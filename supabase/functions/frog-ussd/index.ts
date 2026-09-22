@@ -35,6 +35,17 @@ import { initiateCharge, networkFromPhone } from '../_shared/telapay.ts';
 
 const PAGE_SIZE = 4;
 
+/**
+ * Whether data bundles appear on the USSD menu.
+ *
+ * Runtime flag, not a code change: set the USSD_DATA_ENABLED secret to
+ * "false" to hide them, anything else (or unset) to show them. Flipping it in
+ * Supabase → Edge Functions → Secrets takes effect on the next call, with no
+ * redeploy. The website is unaffected either way — this is USSD only.
+ */
+const dataOnUssd = () =>
+  (Deno.env.get('USSD_DATA_ENABLED') ?? 'true').trim().toLowerCase() !== 'false';
+
 const makeTxnId = () => {
   const t = String(Date.now()).slice(-10);
   const r = String(Math.floor(Math.random() * 100)).padStart(2, '0');
@@ -81,14 +92,27 @@ async function clearState(db: SupabaseClient, id: string) {
   await db.from('ussd_sessions').delete().eq('session_id', id);
 }
 
+/**
+ * Home options, numbered from whatever is actually on offer.
+ *
+ * Built as a list rather than hard-coded text so the numbering always matches
+ * what the caller can see — hiding data must not leave a dead "1".
+ */
+function homeOptions(): { key: 'data' | 'checker' | 'mine' | 'support'; label: string }[] {
+  const opts: { key: 'data' | 'checker' | 'mine' | 'support'; label: string }[] = [];
+  if (dataOnUssd()) opts.push({ key: 'data', label: 'Buy data bundle' });
+  opts.push({ key: 'checker', label: 'Buy checker' });
+  opts.push({ key: 'mine', label: 'My checkers' });
+  opts.push({ key: 'support', label: 'Contact support' });
+  return opts;
+}
+
 function homeMenu(): string {
   // Kept short on purpose: a USSD screen is capped at 160 characters, and the
   // delivery-time caveat below only applies to data, so it lives in the data
   // flow rather than greeting every caller.
-  return (
-    'Welcome to Anasdata.\n' +
-    '1. Buy data bundle\n2. Buy checker\n3. My checkers\n4. Contact support'
-  );
+  const lines = homeOptions().map((o, i) => `${i + 1}. ${o.label}`);
+  return `Welcome to Anasdata.\n${lines.join('\n')}`;
 }
 function contactScreen(): string {
   return 'Anasdata Support\nCall/WhatsApp: 0592079246\nEmail: qwekubhadest1414@gmail.com';
@@ -253,25 +277,33 @@ Deno.serve(async (req) => {
     const state = await loadState(db, sessionid);
     if (!state) return reply(body, 'Session expired. Please dial again.', false);
 
-    // home: buy data, buy checker, or contact support
+    // If data was switched off mid-session, don't let a stale state walk the
+    // caller into a flow that is no longer on offer.
+    if (!dataOnUssd() && (state.product === 'data' || state.step === 'network' || state.step === 'bundle')) {
+      await saveState(db, sessionid, { step: 'home' });
+      return reply(body, homeMenu(), true);
+    }
+
+    // home: resolve the keypress against whatever is currently on offer
     if (state.step === 'home') {
-      if (userdata === '1') {
+      const opts = homeOptions();
+      const chosen = opts[parseInt(userdata, 10) - 1];
+      if (!chosen) return reply(body, `Invalid.\n${homeMenu()}`, true);
+
+      if (chosen.key === 'data') {
         await saveState(db, sessionid, { step: 'network', product: 'data' });
         return reply(body, networkMenu(), true);
       }
-      if (userdata === '2') {
+      if (chosen.key === 'checker') {
         await saveState(db, sessionid, { step: 'checker', product: 'checker', page: 0 });
         return reply(body, await checkerMenu(db, 0), true);
       }
-      if (userdata === '3') {
+      if (chosen.key === 'mine') {
         await saveState(db, sessionid, { step: 'myCheckers', page: 0 });
         return reply(body, myCheckersMenu(await myCheckers(db, phone), 0), true);
       }
-      if (userdata === '4') {
-        await clearState(db, sessionid);
-        return reply(body, contactScreen(), false);
-      }
-      return reply(body, `Invalid.\n${homeMenu()}`, true);
+      await clearState(db, sessionid);
+      return reply(body, contactScreen(), false);
     }
 
     // choose network (data bundles only)
