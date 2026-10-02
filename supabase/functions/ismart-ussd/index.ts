@@ -131,39 +131,61 @@ Deno.serve(async (req) => {
     parsedKeys: Object.keys(body),
   }));
 
-  const sessionId = pick(body, ['sessionID', 'sessionId', 'sessionid', 'session_id', 'SessionId']);
-  const msisdn = pick(body, ['msisdn', 'phonenumber', 'phoneNumber', 'phone', 'mobile', 'from', 'MSISDN']);
-  const input = pick(body, ['ussdString', 'userdata', 'userData', 'text', 'input', 'message', 'ussdInput']);
-  const serviceCode = pick(body, ['code', 'serviceCode', 'ussdCode', 'shortcode']);
+  const sessionId = pick(body, ['sessionID', 'sessionId', 'sessionid', 'session_id', 'SessionId', 'session', 'sessid']);
+  const msisdn = pick(body, ['msisdn', 'phonenumber', 'phoneNumber', 'phone', 'mobile', 'from', 'MSISDN', 'subscriber', 'sender']);
+  const input = pick(body, ['ussdString', 'ussd_string', 'userdata', 'userData', 'text', 'input', 'message', 'ussdInput', 'ussdText', 'msg']);
+  const serviceCode = pick(body, ['code', 'serviceCode', 'ussdCode', 'shortcode', 'short_code']);
 
   // Phase: every aggregator signals "first request" differently.
   const op = parseInt(pick(body, ['ussdServiceOp', 'msgtype', 'requestType', 'type']), 10);
   const mode = pick(body, ['mode']).toUpperCase();
   const newSession = pick(body, ['newSession', 'isNewSession']).toLowerCase();
 
+  // Several gateways send the dialled code as the "input" of the first
+  // request. Without this, that reads as a keypress and the caller is told
+  // their session expired on the very first screen.
+  const looksLikeDialledCode =
+    Boolean(input) && (input === serviceCode || /^\*[\d*#]+#$/.test(input));
+
   let phase: 'start' | 'continue' | 'end';
-  if (mode === 'START' || op === 1 || newSession === 'true' || (!input && !mode && Number.isNaN(op))) {
+  if (
+    mode === 'START' || op === 1 || newSession === 'true' ||
+    looksLikeDialledCode ||
+    (!input && !mode && Number.isNaN(op))
+  ) {
     phase = 'start';
-  } else if (mode === 'END' || (!Number.isNaN(op) && op >= 29)) {
+  } else if (mode === 'END' || newSession === 'end' || (!Number.isNaN(op) && op >= 29)) {
     phase = 'end';
   } else {
     phase = 'continue';
   }
 
-  // On the first request the "input" is usually the dialled code itself, not
-  // a menu choice — passing it through would read as a keypress.
-  const keypress = phase === 'start' || (serviceCode && input === serviceCode) ? '' : input;
+  // On the first request the "input" is the dialled code, not a menu choice.
+  const keypress = phase === 'start' ? '' : input;
 
-  const result = await handleUssd(
-    createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!),
-    {
-      sessionId: sessionId || `ismart-${msisdn}`, // never key state on an empty id
-      msisdn,
-      input: keypress,
-      phase,
-      networkHint: pick(body, ['network', 'networkCode', 'operator']),
+  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  // Never key session state on an empty id — fall back to the caller's number.
+  const key = sessionId || `ismart-${msisdn}`;
+
+  // If we read this as a continuation but no session exists, we almost
+  // certainly misread an opening request from an envelope we have not seen.
+  // Showing the menu beats telling a brand-new caller their session expired.
+  if (phase === 'continue') {
+    const { data: existing } = await db
+      .from('ussd_sessions').select('session_id').eq('session_id', key).maybeSingle();
+    if (!existing) {
+      console.log('ismart-ussd: continuation with no state — treating as a new session', key);
+      phase = 'start';
     }
-  );
+  }
+
+  const result = await handleUssd(db, {
+    sessionId: key,
+    msisdn,
+    input: phase === 'start' ? '' : keypress,
+    phase,
+    networkHint: pick(body, ['network', 'networkCode', 'operator']),
+  });
 
   return render(detectStyle(body), body, result.message, result.cont);
 });
