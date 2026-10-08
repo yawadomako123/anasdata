@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Anasdata — data-bundle reseller storefront + admin order dashboard",
+  "description": "Anas Hub — checkers, e-tickets and vouchers storefront + admin dashboard",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

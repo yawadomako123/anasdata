@@ -100,10 +100,10 @@ function render(style: Style, body: Record<string, unknown>, message: string, co
 
 Deno.serve(async (req) => {
   if (req.method === 'GET') {
-    return new Response('Anasdata USSD (iSmart) — ready', { status: 200 });
+    return new Response('Anas Hub USSD (iSmart) — ready', { status: 200 });
   }
   if (req.method !== 'POST') {
-    return new Response('Anasdata USSD (iSmart) — ready', { status: 200 });
+    return new Response('Anas Hub USSD (iSmart) — ready', { status: 200 });
   }
 
   const raw = await req.text();

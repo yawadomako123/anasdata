@@ -24,7 +24,7 @@ export async function notifyTelegram(order: Record<string, unknown>) {
   // A checker has no network and no GB size, so those lines are skipped
   // rather than rendered as "undefined".
   const lines = [
-    `🆕 *New Anasdata order* (${channel})`,
+    `🆕 *New Anas Hub order* (${channel})`,
     '',
     isChecker ? `🎫 ${order.bundle_name}` : `📦 ${order.bundle_name} (${order.data})`,
     `📱 \`${order.phone}\``,

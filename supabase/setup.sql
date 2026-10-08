@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════
---  Anasdata — RESET + SETUP  (run in Supabase SQL Editor)
+--  Anas Hub — RESET + SETUP  (run in Supabase SQL Editor)
 --
 --  ⚠️  DESTRUCTIVE: Part 1 DROPS EVERY TABLE in the "public" schema
 --      (your old tables). Only run this on a project you're happy to
@@ -20,7 +20,7 @@ begin
   end loop;
 end $$;
 
--- ── PART 2: create the Anasdata schema ─────────────────────────
+-- ── PART 2: create the Anas Hub schema ─────────────────────────
 
 create table public.orders (
   id             uuid primary key default gen_random_uuid(),

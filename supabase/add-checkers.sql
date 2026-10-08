@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════
---  Anasdata — RESULT / VOTING CHECKERS  (safe / additive)
+--  Anas Hub — RESULT / VOTING CHECKERS  (safe / additive)
 --
 --  Run once in the Supabase SQL Editor (project: guilqdqayfcwbxdmzhvl).
 --  Nothing is dropped; safe to run more than once.

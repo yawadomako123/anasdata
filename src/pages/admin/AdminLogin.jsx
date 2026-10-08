@@ -31,7 +31,7 @@ export default function AdminLogin() {
       <form className="admin-card admin-login" onSubmit={handleLogin}>
         <div className="nav-logo" style={{ justifyContent: 'center', marginBottom: 4 }}>
           <span className="nav-logo-icon">A</span>
-          <span className="nav-logo-text">Anasdata</span>
+          <span className="nav-logo-text">Anas Hub</span>
         </div>
         <h2 style={{ textAlign: 'center' }}>Admin Login</h2>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: 20 }}>

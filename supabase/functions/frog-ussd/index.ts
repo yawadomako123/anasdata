@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     p.forEach((v, k) => (body[k] = v));
     // A bare GET with no USSD params is just a health check / browser hit.
     if (!body.sessionid && !body.mode) {
-      return new Response('Anasdata USSD (Wigal Frog) — ready', { status: 200 });
+      return new Response('Anas Hub USSD (Wigal Frog) — ready', { status: 200 });
     }
     isV1 = true;
   } else if (req.method === 'POST') {
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
       } catch { /* ignore */ }
     }
   } else {
-    return new Response('Anasdata USSD (Wigal Frog) — ready', { status: 200 });
+    return new Response('Anas Hub USSD (Wigal Frog) — ready', { status: 200 });
   }
   body.__isV1 = isV1;
 

@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════
---  Anasdata — PRODUCT CATEGORIES + EMAIL DELIVERY  (safe / additive)
+--  Anas Hub — PRODUCT CATEGORIES + EMAIL DELIVERY  (safe / additive)
 --
 --  Run once in the Supabase SQL Editor (project: guilqdqayfcwbxdmzhvl).
 --  Nothing is dropped; safe to run more than once.

@@ -27,7 +27,7 @@ export default function AdminTopbar({ onRefresh }) {
     <header className="admin-topbar">
       <div className="nav-logo">
         <span className="nav-logo-icon">A</span>
-        <span className="nav-logo-text">Anasdata Admin</span>
+        <span className="nav-logo-text">Anas Hub Admin</span>
       </div>
 
       {/* Desktop: inline links */}

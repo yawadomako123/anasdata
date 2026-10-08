@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════
---  Anasdata — RESEED BUNDLES  (MTN + Telecel + AirtelTigo)
+--  Anas Hub — RESEED BUNDLES  (MTN + Telecel + AirtelTigo)
 --
 --  Run this in the Supabase SQL Editor to REPLACE the whole bundle
 --  catalogue with the current price list. It clears the bundles table

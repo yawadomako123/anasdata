@@ -7,7 +7,7 @@ export default function Footer() {
         <div className="footer-brand">
           <div className="nav-logo">
             <span className="nav-logo-icon">A</span>
-            <span className="nav-logo-text">Anasdata</span>
+            <span className="nav-logo-text">Anas Hub</span>
           </div>
           <p>
             Results checkers delivered instantly, plus non-expiry top-ups for every major network.
@@ -42,7 +42,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="footer-bottom">
-        <p>© {new Date().getFullYear()} Anasdata. All rights reserved. Powered by PaySwitch.</p>
+        <p>© {new Date().getFullYear()} Anas Hub. All rights reserved. Powered by PaySwitch.</p>
       </div>
     </footer>
   );

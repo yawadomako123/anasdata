@@ -24,7 +24,7 @@ export default function Navbar() {
     <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
       <Link to="/" className="nav-logo" onClick={close}>
         <span className="nav-logo-icon">A</span>
-        <span className="nav-logo-text">Anasdata</span>
+        <span className="nav-logo-text">Anas Hub</span>
       </Link>
 
       {/* Tap-anywhere backdrop to dismiss the open mobile menu. */}

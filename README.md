@@ -1,4 +1,4 @@
-# Anasdata — Data Bundle Reseller
+# Anas Hub — Checkers, E-Tickets & Vouchers
 
 A React storefront + admin dashboard for reselling data bundles in Ghana, with **two ways to buy**: the website (Paystack) and **USSD** (dial a code, pay by mobile money via Arkesel). Both drop orders into one place you control.
 

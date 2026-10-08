@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════
---  Anasdata — ADD AIRTELTIGO BUNDLES  (safe / additive)
+--  Anas Hub — ADD AIRTELTIGO BUNDLES  (safe / additive)
 --
 --  Run this ONCE in the Supabase SQL Editor on an existing database.
 --  It does NOT wipe anything and is safe to run more than once.

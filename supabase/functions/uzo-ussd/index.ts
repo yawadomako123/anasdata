@@ -36,7 +36,7 @@ function networkFromMnc(mnc: string): string {
 Deno.serve(async (req) => {
   // A plain GET is a browser or uptime check.
   if (req.method !== 'POST') {
-    return new Response('Anasdata USSD (Uzo) — ready', { status: 200 });
+    return new Response('Anas Hub USSD (Uzo) — ready', { status: 200 });
   }
 
   let body: Record<string, unknown> = {};

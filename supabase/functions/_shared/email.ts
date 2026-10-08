@@ -9,7 +9,7 @@
 //
 //  Secrets (Supabase → Edge Functions → Secrets):
 //    RESEND_API_KEY   — required to actually send
-//    EMAIL_FROM       — verified sender, e.g. "Anasdata <codes@yourdomain>"
+//    EMAIL_FROM       — verified sender, e.g. "Anas Hub <codes@yourdomain>"
 // ════════════════════════════════════════════════════════════
 
 const RESEND_URL = 'https://api.resend.com/emails';
@@ -32,7 +32,7 @@ export function codeEmail(opts: {
   reference: string;
 }) {
   const label = CATEGORY_LABEL[opts.category] ?? CATEGORY_LABEL.voucher;
-  const subject = `Your ${opts.productName} — ${label.noun} from Anasdata`;
+  const subject = `Your ${opts.productName} — ${label.noun} from Anas Hub`;
 
   const text = [
     `Your ${label.noun} is ready.`,
@@ -46,7 +46,7 @@ export function codeEmail(opts: {
     'You can also retrieve this code any time by dialling our shortcode',
     'and choosing "My purchases", or on our website under Track Order.',
     '',
-    'Anasdata',
+    'Anas Hub',
   ].join('\n');
 
   const esc = (s: string) =>
@@ -54,7 +54,7 @@ export function codeEmail(opts: {
 
   const html = `
 <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1a1a1a">
-  <p style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#5b3fd6;font-weight:700;margin:0 0 6px">Anasdata</p>
+  <p style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#5b3fd6;font-weight:700;margin:0 0 6px">Anas Hub</p>
   <h1 style="font-size:22px;margin:0 0 18px">Your ${esc(label.noun)} is ready</h1>
   <p style="margin:0 0 18px;color:#444">${esc(opts.productName)}</p>
   <table role="presentation" style="width:100%;border-collapse:collapse;background:#f3f5fa;border:1px solid #d8dee8;border-radius:10px">
@@ -86,7 +86,7 @@ export async function sendEmail(
   html: string
 ): Promise<{ ok: boolean; error?: string }> {
   const apiKey = Deno.env.get('RESEND_API_KEY');
-  const from = Deno.env.get('EMAIL_FROM') || 'Anasdata <onboarding@resend.dev>';
+  const from = Deno.env.get('EMAIL_FROM') || 'Anas Hub <onboarding@resend.dev>';
 
   if (!apiKey) return { ok: false, error: 'Email not configured (RESEND_API_KEY missing)' };
   if (!isValidEmail(to)) return { ok: false, error: `Invalid email address: ${to}` };

@@ -151,11 +151,11 @@ async function homeOptions(db: SupabaseClient): Promise<{ key: HomeKey; label: s
 
 async function homeMenu(db: SupabaseClient): Promise<string> {
   const lines = (await homeOptions(db)).map((o, i) => `${i + 1}. ${o.label}`);
-  return `Welcome to Anasdata.\n${lines.join('\n')}`;
+  return `Welcome to Anas Hub.\n${lines.join('\n')}`;
 }
 
 function contactScreen(): string {
-  return 'Anasdata Support\nCall/WhatsApp: 0592079246\nEmail: qwekubhadest1414@gmail.com';
+  return 'Anas Hub Support\nCall/WhatsApp: 0592079246\nEmail: qwekubhadest1414@gmail.com';
 }
 function networkMenu(): string {
   const lines = NETWORK_ORDER.map((id, i) => `${i + 1}. ${NETWORKS[id].name}`);

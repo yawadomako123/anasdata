@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════
---  Anasdata — ADD BUNDLES TABLE  (safe / additive)
+--  Anas Hub — ADD BUNDLES TABLE  (safe / additive)
 --
 --  Run this in the Supabase SQL Editor. It does NOT wipe anything.
 --  It creates the `bundles` catalog table (so you can add/delete
