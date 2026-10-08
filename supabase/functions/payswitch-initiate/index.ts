@@ -16,6 +16,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getBundle } from '../_shared/catalogue.ts';
 import { initiateCharge, networkFromPhone } from '../_shared/telapay.ts';
 import { getVoucherType, reserveVoucher, releaseVoucher } from '../_shared/vouchers.ts';
+import { isValidEmail } from '../_shared/email.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -47,9 +48,13 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const { bundleId, voucherTypeId, phone, payerPhone } = await req.json();
+    const { bundleId, voucherTypeId, phone, payerPhone, email } = await req.json();
     const recipient = String(phone || '').trim();
     const payer = String(payerPhone || phone || '').trim();
+    // Optional: a code is emailed as well as shown on screen. A bad address is
+    // dropped rather than failing the sale — the buyer still gets it on screen.
+    const deliveryEmail =
+      voucherTypeId && isValidEmail(String(email ?? '')) ? String(email).trim().toLowerCase() : null;
 
     if (!bundleId && !voucherTypeId) return json({ error: 'Missing product.' }, 400);
     if (!recipient) return json({ error: 'Missing number.' }, 400);
@@ -101,7 +106,7 @@ Deno.serve(async (req) => {
       reference: transactionId,
       price,
       phone: recipient,
-      email: null,
+      email: deliveryEmail,
       status: 'pending',
       channel: 'web',
       payment_method: 'telapay-momo',

@@ -7,13 +7,14 @@ import {
   fetchUndeliveredCheckers,
   revealCheckerPin,
   parsePinCsv,
+  CATEGORIES,
 } from '../../lib/checkers';
 import { cedis, prettyDate } from '../../lib/format';
 import { useToast } from '../../components/Toast.jsx';
 import AdminTopbar from './AdminTopbar.jsx';
 
 const LOW_STOCK = 5;
-const EMPTY = { name: '', description: '', price: '', sortOrder: '' };
+const EMPTY = { name: '', description: '', price: '', sortOrder: '', category: 'checker' };
 
 export default function AdminCheckers() {
   const toast = useToast();
@@ -62,6 +63,7 @@ export default function AdminCheckers() {
       description: form.description,
       price: form.price,
       sortOrder: form.sortOrder,
+      category: form.category,
     });
     setSaving(false);
     if (!res.ok) return toast(`⚠️ ${res.error}`, 'error');
@@ -123,6 +125,12 @@ export default function AdminCheckers() {
         {/* Add a product */}
         <h3 style={{ marginBottom: 12 }}>Add a checker</h3>
         <form className="filters-bar" onSubmit={submit} style={{ marginBottom: 26 }}>
+          <div className="filter-group">
+            <div className="filter-label">Type</div>
+            <select className="filter-select" value={form.category} onChange={(e) => set('category', e.target.value)}>
+              {CATEGORIES.map((c) => (<option key={c.key} value={c.key}>{c.label}</option>))}
+            </select>
+          </div>
           <div className="filter-group" style={{ flex: 1, minWidth: 160 }}>
             <div className="filter-label">Name</div>
             <input className="filter-select" placeholder="e.g. BECE Results Checker"
@@ -165,7 +173,7 @@ export default function AdminCheckers() {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Checker</th><th>Price</th><th>Available</th>
+                  <th>Item</th><th>Type</th><th>Price</th><th>Available</th>
                   <th>Held</th><th>Sold</th><th>On sale</th><th></th>
                 </tr>
               </thead>
@@ -179,6 +187,7 @@ export default function AdminCheckers() {
                         <div className="strong">{t.name}</div>
                         {t.description && <div className="muted small">{t.description}</div>}
                       </td>
+                      <td className="muted small">{(CATEGORIES.find((c) => c.key === (t.category || 'checker')) || {}).label}</td>
                       <td className="strong">{cedis(Number(t.price))}</td>
                       <td>
                         <span className={`history-status-badge ${low === 'out' ? 'expired' : low === 'low' ? 'pending' : 'success'}`}>

@@ -20,7 +20,8 @@
 // ════════════════════════════════════════════════════════════
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { notifyTelegram, notifyTelegramText } from './notify.ts';
-import { claimVoucher } from './vouchers.ts';
+import { claimVoucher, getVoucherType } from './vouchers.ts';
+import { sendEmail, codeEmail } from './email.ts';
 
 export interface FulfilResult {
   order: Record<string, unknown>;
@@ -71,10 +72,42 @@ export async function confirmAndFulfil(
   }
 
   const wasAlreadyDone = order.status === 'done';
+
+  // Email it, if the buyer gave an address and we have not already sent.
+  // Email is additive, never load-bearing: the code is collectable on screen
+  // and by dialling back in regardless, so a failure here cannot block a sale
+  // or strand a customer. It is also the only route needing an outside
+  // account, so it no-ops cleanly until one is configured.
+  const patch: Record<string, unknown> = { status: 'done', delivery_error: null };
+  const address = String(order.email ?? '').trim();
+
+  if (address && !order.email_sent_at) {
+    const type = order.voucher_type_id
+      ? await getVoucherType(db, String(order.voucher_type_id))
+      : null;
+    const mail = codeEmail({
+      productName: String(order.bundle_name),
+      category: type?.category ?? 'voucher',
+      serial: voucher.serial,
+      code: voucher.pin,
+      reference: String(order.reference),
+    });
+    const sent = await sendEmail(address, mail.subject, mail.text, mail.html);
+    if (sent.ok) {
+      patch.email_sent_at = new Date().toISOString();
+      patch.email_error = null;
+    } else {
+      patch.email_error = sent.error ?? 'Email failed';
+      await notifyTelegramText(
+        '⚠️ *Could not email a code*\n' +
+        `Ref \`${order.reference}\` — ${address}\n` +
+        `${patch.email_error}\nThe customer can still collect it by dialling in.`
+      );
+    }
+  }
+
   const { data: updated } = await db
-    .from('orders')
-    .update({ status: 'done', delivery_error: null })
-    .eq('id', id).select().single();
+    .from('orders').update(patch).eq('id', id).select().single();
 
   if (!wasAlreadyDone) await notifyTelegram(updated ?? order);
   return { order: updated ?? order, voucher };

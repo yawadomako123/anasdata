@@ -23,6 +23,7 @@ export default function Checkout() {
 
   const [phone, setPhone] = useState(''); // number to top up / to look the PIN up by
   const [momo, setMomo] = useState(''); // Mobile Money number to charge (payer)
+  const [email, setEmail] = useState(''); // optional — a copy of the code by email
   const [momoEdited, setMomoEdited] = useState(false);
   const [touched, setTouched] = useState({});
   const [busy, setBusy] = useState('');
@@ -85,6 +86,8 @@ export default function Checkout() {
   const net = isChecker ? null : NETWORKS[item.network];
   const phoneOk = isValidGhPhone(phone);
   const momoOk = isValidGhPhone(momo);
+  // Blank is fine — email is optional. Only a non-empty, malformed value is an error.
+  const emailOk = /^[^s@]+@[^s@]+.[^s@]{2,}$/.test(email.trim());
 
   function onPhoneChange(v) {
     const clean = v.replace(/\D/g, '');
@@ -110,6 +113,9 @@ export default function Checkout() {
       return toast(isChecker ? '⚠️ Enter a valid number' : '⚠️ Enter a valid number to top up', 'error');
     }
     if (!momoOk) return toast('⚠️ Enter a valid Mobile Money number', 'error');
+    if (isChecker && email.trim() && !emailOk) {
+      return toast('⚠️ That email address is not valid — clear it or correct it', 'error');
+    }
 
     try {
       setBusy('Sending prompt to your phone…');
@@ -118,6 +124,7 @@ export default function Checkout() {
         voucherTypeId: isChecker ? item.id : undefined,
         phone,
         payerPhone: momo,
+        email: isChecker && emailOk ? email.trim() : undefined,
       });
       if (!init.ok) {
         toast(`⚠️ ${init.error}`, 'error', 6000);
@@ -248,6 +255,32 @@ export default function Checkout() {
               <div className="form-error show">Enter a valid 10-digit Mobile Money number</div>
             )}
           </div>
+
+          {/* Optional. The code is shown on screen either way — this is just a
+              copy to keep. Left blank, nothing is sent. */}
+          {isChecker && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="email">
+                Email it to me as well <span className="muted">(optional)</span>
+              </label>
+              <input
+                id="email"
+                type="email"
+                className="form-input"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+              />
+              <div className="form-hint">
+                📧 We'll email a copy once payment clears. Your code still appears on the next
+                screen, so this is only for your records.
+              </div>
+              {touched.email && email.trim() && !emailOk && (
+                <div className="form-error show">That doesn't look like a valid email address</div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="paystack-info">

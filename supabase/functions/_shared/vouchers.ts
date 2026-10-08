@@ -7,11 +7,22 @@
 // ════════════════════════════════════════════════════════════
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+/** The three product lines. Everything below is category-aware so the menus
+ *  can offer them separately while sharing one stock engine. */
+export type Category = 'checker' | 'eticket' | 'voucher';
+
+export const CATEGORIES: { key: Category; label: string; plural: string }[] = [
+  { key: 'checker', label: 'Buy checker', plural: 'Checkers' },
+  { key: 'eticket', label: 'Get e-tickets', plural: 'E-tickets' },
+  { key: 'voucher', label: 'Buy vouchers', plural: 'Vouchers' },
+];
+
 export interface VoucherType {
   id: string;
   name: string;
   description: string | null;
   price: number;
+  category: Category;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -20,6 +31,7 @@ const mapType = (row: any): VoucherType => ({
   name: row.name,
   description: row.description ?? null,
   price: Number(row.price),
+  category: (row.category ?? 'checker') as Category,
 });
 
 /** One active checker product by id (used to price an order server-side). */
@@ -37,12 +49,20 @@ export async function getVoucherType(
   return mapType(data);
 }
 
-/** Active checker products that still have stock, in display order. */
-export async function inStockVoucherTypes(db: SupabaseClient): Promise<VoucherType[]> {
-  const { data: types, error } = await db
+/**
+ * Active products that still have stock, in display order.
+ * Pass a category to restrict it to one product line.
+ */
+export async function inStockVoucherTypes(
+  db: SupabaseClient,
+  category?: Category
+): Promise<VoucherType[]> {
+  let q = db
     .from('voucher_types')
     .select('*')
-    .eq('active', true)
+    .eq('active', true);
+  if (category) q = q.eq('category', category);
+  const { data: types, error } = await q
     .order('sort_order', { ascending: true })
     .order('price', { ascending: true });
   if (error || !types) return [];
@@ -54,6 +74,21 @@ export async function inStockVoucherTypes(db: SupabaseClient): Promise<VoucherTy
   );
   // Never advertise something we cannot hand over.
   return types.filter((t) => (available.get(t.id) ?? 0) > 0).map(mapType);
+}
+
+/**
+ * Which categories currently have something to sell.
+ *
+ * The menu is built from this, so a product line with no stock simply does
+ * not appear rather than leading a caller to an empty list.
+ */
+export async function inStockCategories(db: SupabaseClient): Promise<Set<Category>> {
+  const { data, error } = await db.rpc('voucher_stock_by_category');
+  if (error || !data) return new Set();
+  return new Set(
+    // deno-lint-ignore no-explicit-any
+    (data as any[]).filter((r) => Number(r.available) > 0).map((r) => r.category as Category)
+  );
 }
 
 /**

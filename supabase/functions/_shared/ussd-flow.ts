@@ -3,17 +3,21 @@
 //
 //  Every aggregator has its own request/response envelope but the flow is
 //  identical, so the flow lives here and each gateway gets a thin adapter:
-//    • frog-ussd  — Wigal Frog (V1 pipe / V2 JSON)
-//    • uzo-ussd   — Uzo (Mobiverse)
-//  Anything added here appears on both without being written twice.
+//    • frog-ussd    — Wigal Frog (V1 pipe / V2 JSON)
+//    • uzo-ussd     — Uzo (Mobiverse)
+//    • ismart-ussd  — iSmart
+//  Anything added here appears on all of them without being written twice.
 //
-//  Sells two things:
-//   • data bundles — loaded by hand from the admin queue
-//   • checkers     — a PIN is reserved at purchase and allocated once MoMo
-//     confirms. It can NOT be shown during the purchase: the session ends at
-//     payment initiation, long before the customer approves. They dial back
-//     and pick "My checkers" to collect it — the network authenticates their
-//     number, so no SMS gateway or API key is needed.
+//  Three product lines, each its own entry on the main menu:
+//    checker  — results checkers   (serial + PIN)
+//    eticket  — event / entry      (reference + code)
+//    voucher  — prepaid vouchers   (serial + code)
+//
+//  All three are one code issued once. A code can NOT be shown during the
+//  purchase: the session ends at payment initiation, long before the
+//  customer approves in their wallet. They collect it by dialling back and
+//  picking "My purchases" — the network authenticates their number, so that
+//  route needs no credential — and optionally by email if they give one.
 //
 //  Screens are capped at 160 characters by the USSD bearer.
 // ════════════════════════════════════════════════════════════
@@ -25,7 +29,16 @@ import {
   getBundle,
   type NetworkId,
 } from './catalogue.ts';
-import { inStockVoucherTypes, getVoucherType, reserveVoucher, releaseVoucher } from './vouchers.ts';
+import {
+  CATEGORIES,
+  inStockVoucherTypes,
+  inStockCategories,
+  getVoucherType,
+  reserveVoucher,
+  releaseVoucher,
+  type Category,
+} from './vouchers.ts';
+import { isValidEmail } from './email.ts';
 import { markRetrieved } from './fulfil.ts';
 import { notifyTelegram } from './notify.ts';
 import { initiateCharge, networkFromPhone } from './telapay.ts';
@@ -84,13 +97,21 @@ const short = (s: string, max = 18) =>
   String(s).length <= max ? String(s) : String(s).slice(0, max - 1).trimEnd() + '.';
 
 interface SessionState {
-  step: 'home' | 'network' | 'bundle' | 'checker' | 'recipient' | 'enterNumber' | 'confirm' | 'myCheckers';
-  product?: 'data' | 'checker';
+  step:
+    | 'home' | 'network' | 'bundle'        // data bundles
+    | 'items'                              // a product list within one category
+    | 'recipient' | 'enterNumber'          // whose number
+    | 'emailAsk' | 'enterEmail'            // optional email delivery
+    | 'confirm'
+    | 'myPurchases';
+  product?: 'data' | 'code';
+  category?: Category;
   network?: NetworkId;
   page?: number;
   bundleId?: string;
   voucherTypeId?: string;
   recipient?: string;
+  email?: string;
 }
 
 async function loadState(db: SupabaseClient, id: string): Promise<SessionState | null> {
@@ -104,32 +125,42 @@ async function clearState(db: SupabaseClient, id: string) {
   await db.from('ussd_sessions').delete().eq('session_id', id);
 }
 
+type HomeKey = 'data' | Category | 'mine' | 'support';
+
 /**
  * Home options, numbered from whatever is actually on offer.
  *
  * Built as a list rather than hard-coded text so the numbering always matches
- * what the caller can see — hiding data must not leave a dead "1".
+ * what the caller can see: a product line with no stock is left out entirely
+ * rather than leading to an empty screen, and hiding data never leaves a
+ * dead "1".
  */
-function homeOptions(): { key: 'data' | 'checker' | 'mine' | 'support'; label: string }[] {
-  const opts: { key: 'data' | 'checker' | 'mine' | 'support'; label: string }[] = [];
+async function homeOptions(db: SupabaseClient): Promise<{ key: HomeKey; label: string }[]> {
+  const opts: { key: HomeKey; label: string }[] = [];
   if (dataOnUssd()) opts.push({ key: 'data', label: 'Buy data bundle' });
-  opts.push({ key: 'checker', label: 'Buy checker' });
-  opts.push({ key: 'mine', label: 'My checkers' });
+
+  const stocked = await inStockCategories(db);
+  for (const c of CATEGORIES) {
+    if (stocked.has(c.key)) opts.push({ key: c.key, label: c.label });
+  }
+
+  opts.push({ key: 'mine', label: 'My purchases' });
   opts.push({ key: 'support', label: 'Contact support' });
   return opts;
 }
 
-function homeMenu(): string {
-  const lines = homeOptions().map((o, i) => `${i + 1}. ${o.label}`);
+async function homeMenu(db: SupabaseClient): Promise<string> {
+  const lines = (await homeOptions(db)).map((o, i) => `${i + 1}. ${o.label}`);
   return `Welcome to Anasdata.\n${lines.join('\n')}`;
 }
+
 function contactScreen(): string {
   return 'Anasdata Support\nCall/WhatsApp: 0592079246\nEmail: qwekubhadest1414@gmail.com';
 }
 function networkMenu(): string {
   const lines = NETWORK_ORDER.map((id, i) => `${i + 1}. ${NETWORKS[id].name}`);
   // Only data buyers reach this screen, so the loading delay is stated here.
-  // Checkers are instant and their flow never shows it.
+  // Codes are instant and their flow never shows it.
   return `Select network\n${lines.join('\n')}\nData loads in 5-30 mins`;
 }
 async function bundleMenu(db: SupabaseClient, net: NetworkId, page: number): Promise<string> {
@@ -143,29 +174,33 @@ async function bundleMenu(db: SupabaseClient, net: NetworkId, page: number): Pro
   nav.push('9.Back');
   return `${NETWORKS[net].name} data:\n${lines.join('\n')}\n${nav.join('  ')}`;
 }
-/** Only ever lists checkers that actually have stock. */
-async function checkerMenu(db: SupabaseClient, page: number): Promise<string> {
-  const all = await inStockVoucherTypes(db);
-  if (all.length === 0) return 'No checkers in stock right now.\n9. Back';
+
+const categoryTitle = (c: Category) =>
+  CATEGORIES.find((x) => x.key === c)?.plural ?? 'Items';
+
+/** Products within one category — only those actually in stock. */
+async function itemsMenu(db: SupabaseClient, category: Category, page: number): Promise<string> {
+  const all = await inStockVoucherTypes(db, category);
+  if (all.length === 0) return `${categoryTitle(category)}: none in stock\n9. Back`;
   const start = page * PAGE_SIZE;
   const slice = all.slice(start, start + PAGE_SIZE);
   const lines = slice.map((t, i) => `${i + 1}. ${short(t.name)} ${money(t.price)}`);
   const nav: string[] = [];
   if (start + PAGE_SIZE < all.length) nav.push('0.More');
   nav.push('9.Back');
-  return `Checkers:\n${lines.join('\n')}\n${nav.join('  ')}`;
+  return `${categoryTitle(category)}:\n${lines.join('\n')}\n${nav.join('  ')}`;
 }
 
 /**
- * Checkers this caller has paid for.
+ * Purchases this caller can collect.
  *
  * The gateway gives us an MSISDN the mobile network has already
  * authenticated, which is a stronger identity check than anything we could
- * ask for on a web form — so no SMS, login or API key is needed for someone
- * to collect their own PIN. We match both the number the PIN was bought for
- * and the number that paid, since those are the two legitimate parties.
+ * ask for on a web form — so no login or API key is needed for someone to
+ * collect their own code. We match both the number it was bought for and the
+ * number that paid, since those are the two legitimate parties.
  */
-async function myCheckers(db: SupabaseClient, msisdn: string) {
+async function myPurchases(db: SupabaseClient, msisdn: string) {
   const local = toLocal(msisdn);
   const { data } = await db
     .from('orders')
@@ -179,8 +214,8 @@ async function myCheckers(db: SupabaseClient, msisdn: string) {
 }
 
 // deno-lint-ignore no-explicit-any
-function myCheckersMenu(rows: any[], page: number): string {
-  if (rows.length === 0) return 'No checkers found for this number.\n9. Back';
+function myPurchasesMenu(rows: any[], page: number): string {
+  if (rows.length === 0) return 'No purchases found for this number.\n9. Back';
   const start = page * PAGE_SIZE;
   const slice = rows.slice(start, start + PAGE_SIZE);
   const lines = slice.map((o, i) => {
@@ -191,18 +226,21 @@ function myCheckersMenu(rows: any[], page: number): string {
   const nav: string[] = [];
   if (start + PAGE_SIZE < rows.length) nav.push('0.More');
   nav.push('9.Back');
-  return `Your checkers:\n${lines.join('\n')}\n${nav.join('  ')}`;
+  return `Your purchases:\n${lines.join('\n')}\n${nav.join('  ')}`;
 }
 
+const emailAskScreen = () => 'Email it to you as well?\n1. No thanks\n2. Yes, enter email';
+
 async function confirmScreen(db: SupabaseClient, state: SessionState, recipient: string): Promise<string> {
-  if (state.product === 'checker') {
+  const emailLine = state.email ? `\nEmail: ${short(state.email, 24)}` : '';
+  if (state.product === 'code') {
     const t = await getVoucherType(db, state.voucherTypeId!);
-    if (!t) return 'Checker unavailable. Dial again.';
-    return `${t.name}\nFor: ${recipient}\nPay ${money(t.price)}\n1. Confirm\n2. Cancel`;
+    if (!t) return 'Item unavailable. Dial again.';
+    return `${short(t.name, 24)}\nFor: ${recipient}${emailLine}\nPay ${money(t.price)}\n1. Confirm  2. Cancel`;
   }
   const b = await getBundle(db, state.bundleId!);
   if (!b) return 'Bundle unavailable. Dial again.';
-  return `${b.data} ${NETWORKS[b.network].name}\nTo: ${recipient}\nPay ${money(b.price)}\n1. Confirm\n2. Cancel`;
+  return `${b.data} ${NETWORKS[b.network].name}\nTo: ${recipient}\nPay ${money(b.price)}\n1. Confirm  2. Cancel`;
 }
 
 const go = (message: string, cont: boolean): UssdReply => ({ message, cont });
@@ -215,7 +253,7 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
   try {
     if (phase === 'start') {
       await saveState(db, sessionId, { step: 'home' });
-      return go(homeMenu(), true);
+      return go(await homeMenu(db), true);
     }
     if (phase === 'end') {
       await clearState(db, sessionId);
@@ -229,32 +267,34 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
     // caller into a flow that is no longer on offer.
     if (!dataOnUssd() && (state.product === 'data' || state.step === 'network' || state.step === 'bundle')) {
       await saveState(db, sessionId, { step: 'home' });
-      return go(homeMenu(), true);
+      return go(await homeMenu(db), true);
     }
 
-    // home: resolve the keypress against whatever is currently on offer
+    // ── home: resolve the keypress against whatever is currently on offer ──
     if (state.step === 'home') {
-      const opts = homeOptions();
+      const opts = await homeOptions(db);
       const chosen = opts[parseInt(input, 10) - 1];
-      if (!chosen) return go(`Invalid.\n${homeMenu()}`, true);
+      if (!chosen) return go(`Invalid.\n${await homeMenu(db)}`, true);
 
       if (chosen.key === 'data') {
         await saveState(db, sessionId, { step: 'network', product: 'data' });
         return go(networkMenu(), true);
       }
-      if (chosen.key === 'checker') {
-        await saveState(db, sessionId, { step: 'checker', product: 'checker', page: 0 });
-        return go(await checkerMenu(db, 0), true);
-      }
       if (chosen.key === 'mine') {
-        await saveState(db, sessionId, { step: 'myCheckers', page: 0 });
-        return go(myCheckersMenu(await myCheckers(db, msisdn), 0), true);
+        await saveState(db, sessionId, { step: 'myPurchases', page: 0 });
+        return go(myPurchasesMenu(await myPurchases(db, msisdn), 0), true);
       }
-      await clearState(db, sessionId);
-      return go(contactScreen(), false);
+      if (chosen.key === 'support') {
+        await clearState(db, sessionId);
+        return go(contactScreen(), false);
+      }
+      // One of the three product categories.
+      const category = chosen.key as Category;
+      await saveState(db, sessionId, { step: 'items', product: 'code', category, page: 0 });
+      return go(await itemsMenu(db, category, 0), true);
     }
 
-    // choose network (data bundles only)
+    // ── data: choose network ──
     if (state.step === 'network') {
       const net = NETWORK_ORDER[parseInt(input, 10) - 1];
       if (!net) return go(`Invalid.\n${networkMenu()}`, true);
@@ -262,7 +302,7 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
       return go(await bundleMenu(db, net, 0), true);
     }
 
-    // choose bundle (paginated)
+    // ── data: choose bundle (paginated) ──
     if (state.step === 'bundle') {
       const net = state.network!;
       const all = await bundlesByNetwork(db, net);
@@ -288,50 +328,51 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
       return go(`${chosen.data} ${money(chosen.price)}\nLoad to:\n1. This No (${own})\n2. Other No`, true);
     }
 
-    // choose checker (paginated)
-    if (state.step === 'checker') {
-      const all = await inStockVoucherTypes(db);
+    // ── codes: choose an item within the chosen category (paginated) ──
+    if (state.step === 'items') {
+      const category = state.category!;
+      const all = await inStockVoucherTypes(db, category);
       const page = state.page ?? 0;
       if (input === '9') {
         await saveState(db, sessionId, { step: 'home' });
-        return go(homeMenu(), true);
+        return go(await homeMenu(db), true);
       }
       if (input === '0') {
         const nextPage = (page + 1) * PAGE_SIZE < all.length ? page + 1 : page;
         await saveState(db, sessionId, { ...state, page: nextPage });
-        return go(await checkerMenu(db, nextPage), true);
+        return go(await itemsMenu(db, category, nextPage), true);
       }
       const n = parseInt(input, 10);
       const chosen = all[page * PAGE_SIZE + (n - 1)];
       if (!n || n < 1 || n > PAGE_SIZE || !chosen) {
-        return go(`Invalid.\n${await checkerMenu(db, page)}`, true);
+        return go(`Invalid.\n${await itemsMenu(db, category, page)}`, true);
       }
       await saveState(db, sessionId, {
-        step: 'recipient', product: 'checker', voucherTypeId: chosen.id,
+        step: 'recipient', product: 'code', category, voucherTypeId: chosen.id,
       });
       const own = toLocal(msisdn);
-      // The number just labels the purchase and lets that person collect it
-      // too — nothing is sent to it.
-      return go(`${chosen.name} ${money(chosen.price)}\nFor which No:\n1. This No (${own})\n2. Other No`, true);
+      // The number labels the purchase and lets that person collect it too —
+      // nothing is sent to it.
+      return go(`${short(chosen.name, 22)} ${money(chosen.price)}\nFor which No:\n1. This No (${own})\n2. Other No`, true);
     }
 
-    // collect a PIN already paid for
-    if (state.step === 'myCheckers') {
-      const rows = await myCheckers(db, msisdn);
+    // ── collect something already paid for ──
+    if (state.step === 'myPurchases') {
+      const rows = await myPurchases(db, msisdn);
       const page = state.page ?? 0;
       if (input === '9') {
         await saveState(db, sessionId, { step: 'home' });
-        return go(homeMenu(), true);
+        return go(await homeMenu(db), true);
       }
       if (input === '0') {
         const nextPage = (page + 1) * PAGE_SIZE < rows.length ? page + 1 : page;
         await saveState(db, sessionId, { ...state, page: nextPage });
-        return go(myCheckersMenu(rows, nextPage), true);
+        return go(myPurchasesMenu(rows, nextPage), true);
       }
       const n = parseInt(input, 10);
       const chosen = rows[page * PAGE_SIZE + (n - 1)];
       if (!n || n < 1 || n > PAGE_SIZE || !chosen) {
-        return go(`Invalid.\n${myCheckersMenu(rows, page)}`, true);
+        return go(`Invalid.\n${myPurchasesMenu(rows, page)}`, true);
       }
 
       const { data: v } = await db
@@ -339,44 +380,77 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
       await clearState(db, sessionId);
 
       if (!v) {
-        return go(`${chosen.bundle_name}\nPIN not ready yet. Contact support with Ref ${chosen.reference}`, false);
+        return go(`${chosen.bundle_name}\nNot ready yet. Contact support with Ref ${chosen.reference}`, false);
       }
       await markRetrieved(db, String(chosen.id));
-      return go(`${chosen.bundle_name}\nSerial: ${v.serial}\nPIN: ${v.pin}\nRef ${chosen.reference}`, false);
+      return go(`${short(chosen.bundle_name, 22)}\nSerial: ${v.serial}\nCode: ${v.pin}\nRef ${chosen.reference}`, false);
     }
 
-    // whose number
+    // ── whose number ──
     if (state.step === 'recipient') {
-      if (input === '1') {
+      if (input === '1' || input === '2') {
+        if (input === '2') {
+          await saveState(db, sessionId, { ...state, step: 'enterNumber' });
+          return go('Enter number (e.g. 0244123456):', true);
+        }
         const own = toLocal(msisdn);
-        const next: SessionState = { ...state, step: 'confirm', recipient: own };
-        await saveState(db, sessionId, next);
+        const next: SessionState = { ...state, recipient: own };
+        // Only codes can be emailed; a data bundle goes to a phone.
+        if (next.product === 'code') {
+          await saveState(db, sessionId, { ...next, step: 'emailAsk' });
+          return go(emailAskScreen(), true);
+        }
+        await saveState(db, sessionId, { ...next, step: 'confirm' });
         return go(await confirmScreen(db, next, own), true);
-      }
-      if (input === '2') {
-        await saveState(db, sessionId, { ...state, step: 'enterNumber' });
-        return go('Enter number (e.g. 0244123456):', true);
       }
       return go('Reply 1 (this No) or 2 (other No).', true);
     }
 
-    // typed recipient
+    // ── typed recipient ──
     if (state.step === 'enterNumber') {
       const rec = input.replace(/\D/g, '');
       if (!isGhPhone(rec)) return go('Invalid. Enter 10-digit No:', true);
-      const next: SessionState = { ...state, step: 'confirm', recipient: rec };
-      await saveState(db, sessionId, next);
+      const next: SessionState = { ...state, recipient: rec };
+      if (next.product === 'code') {
+        await saveState(db, sessionId, { ...next, step: 'emailAsk' });
+        return go(emailAskScreen(), true);
+      }
+      await saveState(db, sessionId, { ...next, step: 'confirm' });
       return go(await confirmScreen(db, next, rec), true);
     }
 
-    // confirm
+    // ── offer email delivery ──
+    if (state.step === 'emailAsk') {
+      if (input === '2') {
+        await saveState(db, sessionId, { ...state, step: 'enterEmail' });
+        return go('Enter your email address:', true);
+      }
+      if (input === '1') {
+        const next: SessionState = { ...state, step: 'confirm' };
+        await saveState(db, sessionId, next);
+        return go(await confirmScreen(db, next, state.recipient!), true);
+      }
+      return go(`Invalid.\n${emailAskScreen()}`, true);
+    }
+
+    // ── typed email ──
+    if (state.step === 'enterEmail') {
+      if (!isValidEmail(input)) {
+        return go('Invalid email. Type it again, or 0 to skip:', true);
+      }
+      const next: SessionState = { ...state, step: 'confirm', email: input.toLowerCase() };
+      await saveState(db, sessionId, next);
+      return go(await confirmScreen(db, next, state.recipient!), true);
+    }
+
+    // ── confirm ──
     if (state.step === 'confirm') {
       if (input !== '1') {
         await clearState(db, sessionId);
         return go('Order cancelled.', false);
       }
 
-      const isChecker = state.product === 'checker';
+      const isCode = state.product === 'code';
       const recipient = state.recipient!;
 
       // Resolve the product and its price server-side.
@@ -384,17 +458,18 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
       let label: string;
       let orderRow: Record<string, unknown>;
 
-      if (isChecker) {
+      if (isCode) {
         const t = await getVoucherType(db, state.voucherTypeId!);
         if (!t) {
           await clearState(db, sessionId);
-          return go('Checker unavailable. Dial again.', false);
+          return go('Item unavailable. Dial again.', false);
         }
         price = t.price;
         label = t.name;
         orderRow = {
           product_type: 'checker', voucher_type_id: t.id,
           bundle_id: null, bundle_name: t.name, network: null, data: null,
+          email: state.email ?? null,
         };
       } else {
         const b = await getBundle(db, state.bundleId!);
@@ -407,6 +482,7 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
         orderRow = {
           product_type: 'data', voucher_type_id: null,
           bundle_id: b.id, bundle_name: b.name, network: b.network, data: b.data,
+          email: null,
         };
       }
 
@@ -418,7 +494,6 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
           reference,
           price,
           phone: recipient,
-          email: null,
           status: 'pending',
           channel: 'ussd',
           payment_method: 'telapay-momo',
@@ -428,22 +503,22 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
         .select()
         .single();
 
-      // Hold the PIN BEFORE charging — never take money we cannot fulfil.
-      if (isChecker && inserted) {
+      // Hold the code BEFORE charging — never take money we cannot fulfil.
+      if (isCode && inserted) {
         const held = await reserveVoucher(db, String(inserted.voucher_type_id), String(inserted.id));
         if (!held) {
           await db.from('orders').update({ status: 'failed' }).eq('id', inserted.id);
           await clearState(db, sessionId);
-          return go('That checker just sold out. You have not been charged.', false);
+          return go('That item just sold out. You have not been charged.', false);
         }
       }
 
       await clearState(db, sessionId);
 
-      // The theTeller MoMo charge (and Telegram ping) are slow external calls.
-      // USSD gateways time out in a few seconds, so we run them in the
-      // BACKGROUND and reply instantly. theTeller sends the customer's MoMo
-      // PIN prompt out-of-band, so ending the USSD session here is fine.
+      // The MoMo charge (and Telegram ping) are slow external calls. USSD
+      // gateways time out in a few seconds, so we run them in the BACKGROUND
+      // and reply instantly. The wallet prompt reaches the customer out of
+      // band, so ending the USSD session here is fine.
       const background = (async () => {
         try {
           // r_switch must describe the payer's wallet. The prefix is the
@@ -458,8 +533,8 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
             callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/telapay-callback`,
           });
           if (!charge.ok && inserted) {
-            // Charge never started — put the PIN back rather than stranding it.
-            if (isChecker) await releaseVoucher(db, String(inserted.id));
+            // Charge never started — put the code back rather than stranding it.
+            if (isCode) await releaseVoucher(db, String(inserted.id));
             await db.from('orders').update({ status: 'failed' }).eq('id', inserted.id);
           }
         } catch { /* order stays pending; admin can reconcile */ }
@@ -473,8 +548,10 @@ export async function handleUssd(db: SupabaseClient, req: UssdRequest): Promise<
           .EdgeRuntime?.waitUntil?.(background);
       } catch { /* not available locally — fine */ }
 
-      const tail = isChecker
-        ? 'Dial again and pick My checkers for your PIN.'
+      const tail = isCode
+        ? state.email
+          ? 'Your code is emailed and also under My purchases.'
+          : 'Dial again and pick My purchases for your code.'
         : `${label} loads to ${recipient} after payment.`;
       return go(
         `To pay ${money(price)}: approve in your MoMo app, or dial *170# then Approvals. ${tail} Ref ${reference}`,

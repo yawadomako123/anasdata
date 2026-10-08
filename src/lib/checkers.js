@@ -20,9 +20,17 @@ const isMissingTable = (error) =>
   error?.code === 'PGRST205' ||
   /does not exist|schema cache/i.test(error?.message ?? '');
 
+/** The three product lines shown on the shop and the USSD menu. */
+export const CATEGORIES = [
+  { key: 'checker', label: 'Checkers', blurb: 'Results checkers' },
+  { key: 'eticket', label: 'E-Tickets', blurb: 'Event and entry tickets' },
+  { key: 'voucher', label: 'Vouchers', blurb: 'Prepaid vouchers' },
+];
+
 const mapType = (row, stock) => ({
   id: row.id,
   name: row.name,
+  category: row.category || 'checker',
   description: row.description || null,
   price: Number(row.price),
   active: row.active,
@@ -101,8 +109,8 @@ async function adminCall(action, args = {}) {
 /** Every checker product with available / reserved / sold counts. */
 export const fetchCheckerStock = () => adminCall('list');
 
-export const createChecker = ({ name, description, price, sortOrder }) =>
-  adminCall('create_type', { name, description, price, sortOrder });
+export const createChecker = ({ name, description, price, sortOrder, category }) =>
+  adminCall('create_type', { name, description, price, sortOrder, category });
 
 export const updateChecker = (id, patch) => adminCall('update_type', { id, ...patch });
 

@@ -22,11 +22,11 @@ async function readFnError(error) {
  *
  * @returns {Promise<{ok: boolean, transactionId?: string, error?: string}>}
  */
-export async function initiatePaySwitchOrder({ bundleId, voucherTypeId, phone, payerPhone }) {
+export async function initiatePaySwitchOrder({ bundleId, voucherTypeId, phone, payerPhone, email }) {
   if (!isSupabaseReady) return { ok: false, error: NOT_READY };
 
   const { data, error } = await supabase.functions.invoke('payswitch-initiate', {
-    body: { bundleId, voucherTypeId, phone, payerPhone },
+    body: { bundleId, voucherTypeId, phone, payerPhone, email },
   });
 
   if (error) return { ok: false, error: await readFnError(error) };

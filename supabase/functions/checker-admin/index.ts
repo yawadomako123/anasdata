@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
     if (action === 'list') {
       const { data: types } = await db
         .from('voucher_types').select('*')
+        .order('category', { ascending: true })
         .order('sort_order', { ascending: true });
       const { data: counts } = await db.from('vouchers').select('type_id, status');
 
@@ -70,14 +71,19 @@ Deno.serve(async (req) => {
 
     // ── Create / update a product ──
     if (action === 'create_type') {
-      const { name, description, price, sortOrder } = args;
+      const { name, description, price, sortOrder, category } = args;
       if (!name || price == null) return json({ error: 'Name and price required.' }, 400);
+      const cat = String(category ?? 'checker');
+      if (!['checker', 'eticket', 'voucher'].includes(cat)) {
+        return json({ error: 'Category must be checker, eticket or voucher.' }, 400);
+      }
       const { data, error } = await db
         .from('voucher_types')
         .insert({
           name: String(name).trim(),
           description: description ? String(description).trim() : null,
           price: Number(price),
+          category: cat,
           sort_order: Number(sortOrder) || 0,
         })
         .select().single();
@@ -86,7 +92,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'update_type') {
-      const { id, name, description, price, active, sortOrder } = args;
+      const { id, name, description, price, active, sortOrder, category } = args;
       if (!id) return json({ error: 'Missing id.' }, 400);
       const patch: Record<string, unknown> = {};
       if (name != null) patch.name = String(name).trim();
@@ -94,6 +100,13 @@ Deno.serve(async (req) => {
       if (price != null) patch.price = Number(price);
       if (active != null) patch.active = Boolean(active);
       if (sortOrder != null) patch.sort_order = Number(sortOrder);
+      if (category != null) {
+        const c = String(category);
+        if (!['checker', 'eticket', 'voucher'].includes(c)) {
+          return json({ error: 'Category must be checker, eticket or voucher.' }, 400);
+        }
+        patch.category = c;
+      }
       const { data, error } = await db
         .from('voucher_types').update(patch).eq('id', id).select().single();
       if (error) return json({ error: error.message }, 400);
